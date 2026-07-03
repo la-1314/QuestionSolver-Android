@@ -1,5 +1,7 @@
 package com.questionsolver.app.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.questionsolver.app.R
@@ -31,6 +33,15 @@ class ConfigActivity : AppCompatActivity() {
             updateImageDesc(checked)
         }
 
+        // 引导：打开百度智能云控制台
+        binding.btnOpenConsole.setOnClickListener {
+            openUrl(getString(R.string.url_baidu_console))
+        }
+        // 引导：打开图像增强 API 文档
+        binding.btnOpenDoc.setOnClickListener {
+            openUrl(getString(R.string.url_baidu_doc_image_enhance))
+        }
+
         binding.btnSave.setOnClickListener {
             val newCfg = AppConfig(
                 baiduApiKey = binding.etBaiduApiKey.text.toString().trim(),
@@ -44,6 +55,16 @@ class ConfigActivity : AppCompatActivity() {
             Snackbar.make(binding.root, R.string.config_saved, Snackbar.LENGTH_SHORT).show()
             // 稍作停留后返回
             binding.root.postDelayed({ finish() }, 600)
+        }
+    }
+
+    private fun openUrl(url: String) {
+        runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        }.onFailure {
+            Snackbar.make(binding.root, "无法打开链接：$url", Snackbar.LENGTH_LONG).show()
         }
     }
 
