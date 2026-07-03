@@ -25,14 +25,30 @@
         android:orientation="vertical"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/tvIndex"
+        <!-- 题号 + 难度标签 -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:gravity="center"
-            android:textColor="@color/md_primary"
-            android:textAppearance="?attr/textAppearanceTitleSmall" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="12dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/tvIndex"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/md_primary"
+                android:textAppearance="?attr/textAppearanceTitleSmall" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDifficulty"
+                style="@style/Widget.Material3.Chip.Assist"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:chipIconVisible="true" />
+        </LinearLayout>
 
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
@@ -57,8 +73,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    app:cardCornerRadius="8dp"
-                    app:cardElevation="1dp">
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="1dp"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="@color/md_outline_variant">
 
                     <ImageView
                         android:id="@+id/ivQuestion"
@@ -69,38 +87,88 @@
                         android:background="@android:color/white" />
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- 标准答案 -->
+                <!-- 标准答案（高亮卡片） -->
                 <com.google.android.material.textview.MaterialTextView
                     style="@style/AnswerLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="20dp"
                     android:text="@string/answer_standard" />
 
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="@color/md_secondary_container"
+                    app:strokeWidth="0dp">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/tvAnswer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="16dp"
+                        android:textAppearance="?attr/textAppearanceTitleMedium"
+                        android:textColor="@color/md_on_secondary_container"
+                        android:textIsSelectable="true" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 思路提示 -->
                 <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/tvAnswer"
+                    android:id="@+id/tvHintLabel"
+                    style="@style/AnswerLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/answer_hint"
+                    android:visibility="gone" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/tvHint"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:padding="12dp"
-                    android:background="@color/md_secondary_container"
-                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+                    android:background="@color/md_surface_variant"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="@color/md_on_surface_variant"
+                    android:textIsSelectable="true"
+                    android:visibility="gone" />
 
-                <!-- 分步解析 -->
+                <!-- 分步解析（动态容器） -->
                 <com.google.android.material.textview.MaterialTextView
                     style="@style/AnswerLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="20dp"
                     android:text="@string/answer_steps" />
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/tvSteps"
+                <LinearLayout
+                    android:id="@+id/stepsContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:padding="12dp"
-                    android:textAppearance="?attr/textAppearanceBodyMedium" />
+                    android:orientation="vertical" />
+
+                <!-- 考点与知识点 -->
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/tvKnowledgeLabel"
+                    style="@style/AnswerLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/answer_knowledge"
+                    android:visibility="gone" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipsKnowledge"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="16dp"
+                    app:chipSpacingHorizontal="6dp"
+                    app:chipSpacingVertical="4dp" />
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 
