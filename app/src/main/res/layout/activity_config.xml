@@ -10,7 +10,7 @@
         android:layout_height="wrap_content">
 
         <com.google.android.material.appbar.MaterialToolbar
-            android:id="+id/toolbar"
+            android:id="&#64;+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="@string/main_config"
@@ -43,7 +43,7 @@
                 android:layout_marginTop="8dp"
                 android:hint="@string/config_baidu_api_key">
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="+id/etBaiduApiKey"
+                    android:id="&#64;+id/etBaiduApiKey"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textVisiblePassword" />
@@ -57,7 +57,7 @@
                 app:endIconMode="password_toggle"
                 android:hint="@string/config_baidu_secret_key">
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="+id/etBaiduSecretKey"
+                    android:id="&#64;+id/etBaiduSecretKey"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textPassword" />
@@ -85,7 +85,7 @@
                 android:layout_marginTop="8dp"
                 android:hint="@string/config_llm_domain">
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="+id/etLlmDomain"
+                    android:id="&#64;+id/etLlmDomain"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
@@ -100,7 +100,7 @@
                 app:endIconMode="password_toggle"
                 android:hint="@string/config_llm_key">
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="+id/etLlmKey"
+                    android:id="&#64;+id/etLlmKey"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textPassword" />
@@ -113,28 +113,28 @@
                 android:layout_marginTop="8dp"
                 android:hint="@string/config_llm_model">
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="+id/etLlmModel"
+                    android:id="&#64;+id/etLlmModel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="text" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="+id/swImageSupport"
+                android:id="&#64;+id/swImageSupport"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="@string/config_llm_image_support" />
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="+id/tvImageSupportDesc"
+                android:id="&#64;+id/tvImageSupportDesc"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/md_outline"
                 android:textAppearance="?attr/textAppearanceBodySmall" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="+id/btnSave"
+                android:id="&#64;+id/btnSave"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"

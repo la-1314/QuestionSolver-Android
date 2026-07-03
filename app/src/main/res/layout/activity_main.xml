@@ -11,7 +11,7 @@
         android:fitsSystemWindows="true">
 
         <com.google.android.material.appbar.MaterialToolbar
-            android:id="+id/toolbar"
+            android:id="&#64;+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="@string/app_name"
@@ -44,7 +44,7 @@
             android:layout_marginTop="16dp" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="+id/tvTip"
+            android:id="&#64;+id/tvTip"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/main_tip"
@@ -54,7 +54,7 @@
             android:gravity="center" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="+id/btnTakePhoto"
+            android:id="&#64;+id/btnTakePhoto"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
@@ -63,7 +63,7 @@
             app:iconGravity="textStart" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="+id/btnConfig"
+            android:id="&#64;+id/btnConfig"
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

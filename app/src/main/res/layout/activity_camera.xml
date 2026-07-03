@@ -7,7 +7,7 @@
     android:background="@android:color/black">
 
     <androidx.camera.view.PreviewView
-        android:id="+id/previewView"
+        android:id="&#64;+id/previewView"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintTop_toTopOf="parent"
@@ -16,7 +16,7 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <com.google.android.material.appbar.MaterialToolbar
-        android:id="+id/toolbar"
+        android:id="&#64;+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="#80000000"
@@ -25,7 +25,7 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.button.MaterialButton
-        android:id="+id/btnCapture"
+        android:id="&#64;+id/btnCapture"
         android:layout_width="80dp"
         android:layout_height="80dp"
         android:layout_marginBottom="40dp"
@@ -43,7 +43,7 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <FrameLayout
-        android:id="+id/loadingOverlay"
+        android:id="&#64;+id/loadingOverlay"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="#CC000000"
@@ -69,7 +69,7 @@
                 app:indicatorColor="@android:color/white" />
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="+id/tvLoading"
+                android:id="&#64;+id/tvLoading"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
