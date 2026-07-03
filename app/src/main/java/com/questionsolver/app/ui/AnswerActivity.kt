@@ -1,9 +1,17 @@
 package com.questionsolver.app.ui
 
+import android.graphics.Color
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.setPadding
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.chip.Chip
+import com.google.android.material.color.MaterialColors
+import com.google.android.material.textview.MaterialTextView
 import com.questionsolver.app.R
 import com.questionsolver.app.data.AppConfig
 import com.questionsolver.app.databinding.ActivityAnswerBinding
@@ -64,11 +72,13 @@ class AnswerActivity : AppCompatActivity() {
         binding.btnPrev.isEnabled = currentIndex > 0
         binding.btnNext.isEnabled = currentIndex < total - 1
 
-        // 原题图
+        // 原题图：优先展示用于解题的"处理后图片"
         val item = SessionData.questions[currentIndex]
-        // 优先展示用于解题的“处理后图片”：手动框选=原图裁剪；自动切分=增强后（若有）
         val displayPath = item.enhancedImagePath?.takeIf { File(it).exists() } ?: item.sourceImage
         binding.ivQuestion.setImageURI(android.net.Uri.fromFile(File(displayPath)))
+
+        // 切题时先清空解析区
+        clearResultViews()
 
         val r = results.getOrNull(currentIndex)
         if (r != null) {
@@ -80,10 +90,123 @@ class AnswerActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderResult(r: SolveResult) {
-        binding.tvAnswer.text = r.answer.ifBlank { "（未提供）" }
-        binding.tvSteps.text = r.steps.ifBlank { "（未提供）" }
+    private fun clearResultViews() {
+        binding.tvAnswer.text = ""
+        binding.tvHint.text = ""
+        binding.tvHint.visibility = View.GONE
+        binding.tvHintLabel.visibility = View.GONE
+        binding.stepsContainer.removeAllViews()
+        binding.chipsKnowledge.removeAllViews()
+        binding.chipDifficulty.visibility = View.GONE
+        binding.tvKnowledgeLabel.visibility = View.GONE
     }
+
+    private fun renderResult(r: SolveResult) {
+        // 1) 标准答案
+        binding.tvAnswer.text = r.answer.ifBlank { getString(R.string.answer_unavailable) }
+
+        // 2) 难度 chip
+        if (r.difficulty.isNotBlank()) {
+            binding.chipDifficulty.text = r.difficulty
+            binding.chipDifficulty.chipBackgroundColor = difficultyColor(r.difficulty)
+            binding.chipDifficulty.setTextColor(Color.WHITE)
+            binding.chipDifficulty.visibility = View.VISIBLE
+        } else {
+            binding.chipDifficulty.visibility = View.GONE
+        }
+
+        // 3) 思路提示
+        if (r.hint.isNotBlank()) {
+            binding.tvHintLabel.visibility = View.VISIBLE
+            binding.tvHint.text = r.hint
+            binding.tvHint.visibility = View.VISIBLE
+        } else {
+            binding.tvHintLabel.visibility = View.GONE
+            binding.tvHint.visibility = View.GONE
+        }
+
+        // 4) 分步解析：每步一张小卡片，带序号
+        binding.stepsContainer.removeAllViews()
+        if (r.steps.isEmpty()) {
+            binding.stepsContainer.addView(buildStepView(1, getString(R.string.answer_unavailable)))
+        } else {
+            r.steps.forEachIndexed { i, text ->
+                binding.stepsContainer.addView(buildStepView(i + 1, text))
+            }
+        }
+
+        // 5) 知识点 chips
+        if (r.knowledgePoints.isNotEmpty()) {
+            binding.tvKnowledgeLabel.visibility = View.VISIBLE
+            binding.chipsKnowledge.visibility = View.VISIBLE
+            r.knowledgePoints.forEach { pt ->
+                val chip = Chip(this).apply {
+                    text = pt
+                    isClickable = false
+                    isCheckable = false
+                }
+                binding.chipsKnowledge.addView(chip)
+            }
+        } else {
+            binding.tvKnowledgeLabel.visibility = View.GONE
+            binding.chipsKnowledge.visibility = View.GONE
+        }
+    }
+
+    /** 构造单步解析卡片：左侧序号圆点 + 右侧文字。 */
+    private fun buildStepView(index: Int, text: String): View {
+        val ctx = this
+        val container = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.TOP
+            setPadding(0, dp(8), 0, dp(8))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val numView = MaterialTextView(ctx).apply {
+            text = index.toString()
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setBackgroundResource(R.drawable.step_number_bg)
+            val lp = LinearLayout.LayoutParams(dp(28), dp(28))
+            lp.marginEnd = dp(12)
+            layoutParams = lp
+        }
+
+        val textView = MaterialTextView(ctx).apply {
+            this.text = text
+            textAppearance = com.google.android.material.R.style.TextAppearance_Material3_BodyMedium
+            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface, Color.BLACK))
+            isClickable = true
+            setTextIsSelectable(true)
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+            )
+        }
+
+        container.addView(numView)
+        container.addView(textView)
+        return container
+    }
+
+    private fun difficultyColor(level: String): android.content.res.ColorStateList {
+        val color = when (level.trim()) {
+            "简单" -> 0xFF4CAF50.toInt()
+            "中等" -> 0xFFFF9800.toInt()
+            "困难" -> 0xFFE53935.toInt()
+            else -> 0xFF607D8B.toInt()
+        }
+        return android.content.res.ColorStateList.valueOf(color)
+    }
+
+    private fun dp(v: Int): Int =
+        (v * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun solveCurrent() {
         showLoading()
