@@ -10,7 +10,7 @@
         android:layout_height="wrap_content">
 
         <com.google.android.material.appbar.MaterialToolbar
-            android:id="&#64;+id/toolbar"
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="@string/seg_title"
@@ -26,21 +26,21 @@
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <com.google.android.material.button.MaterialButtonToggleGroup
-            android:id="&#64;+id/toggleSource"
+            android:id="@+id/toggleSource"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="8dp"
             app:singleSelection="true"
             app:selectionRequired="true">
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnSrcEnhanced"
+                android:id="@+id/btnSrcEnhanced"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/seg_use_enhanced" />
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnSrcOriginal"
+                android:id="@+id/btnSrcOriginal"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -49,14 +49,14 @@
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
         <com.questionsolver.app.view.CropBoxOverlayView
-            android:id="&#64;+id/cropOverlay"
+            android:id="@+id/cropOverlay"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:background="@android:color/black" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="&#64;+id/tvHint"
+            android:id="@+id/tvHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="8dp"
@@ -72,7 +72,7 @@
             android:padding="8dp">
 
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnResegment"
+                android:id="@+id/btnResegment"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -81,7 +81,7 @@
                 app:icon="@android:drawable/ic_menu_rotate" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnAddBox"
+                android:id="@+id/btnAddBox"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -91,7 +91,7 @@
                 app:icon="@android:drawable/ic_menu_add" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnDelete"
+                android:id="@+id/btnDelete"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -103,7 +103,7 @@
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
-            android:id="&#64;+id/btnSolveAll"
+            android:id="@+id/btnSolveAll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
@@ -114,7 +114,7 @@
     </LinearLayout>
 
     <FrameLayout
-        android:id="&#64;+id/loadingOverlay"
+        android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#CC000000"
@@ -137,7 +137,7 @@
                 app:indicatorColor="@android:color/white" />
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="&#64;+id/tvLoading"
+                android:id="@+id/tvLoading"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
