@@ -105,6 +105,7 @@ object AnswerParser {
                             .filter { it.isNotBlank() }
                     }
                 }
+                else -> { /* JsonObject / JsonNull 等忽略 */ }
             }
         }
         return emptyList()
