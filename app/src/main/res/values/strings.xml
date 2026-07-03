@@ -13,7 +13,12 @@
     <string name="config_baidu_section">百度智能云</string>
     <string name="config_baidu_api_key">百度 API Key</string>
     <string name="config_baidu_secret_key">百度 Secret Key</string>
-    <string name="config_baidu_hint">鉴权需 API Key 与 Secret Key 同时使用</string>
+    <string name="config_baidu_hint">鉴权需 API Key 与 Secret Key 同时使用（百度 OAuth 硬性要求）</string>
+    <string name="config_baidu_guide_title">如何获取百度密钥？</string>
+    <string name="config_baidu_guide_desc">1. 登录百度智能云控制台 → 2. 创建应用勾选「图像增强与特效」与「文字识别」 → 3. 在应用列表复制 API Key / Secret Key</string>
+    <string name="config_baidu_open_console">打开百度智能云控制台</string>
+    <string name="config_baidu_open_doc">查看图像增强 API 文档</string>
+
     <string name="config_llm_section">大语言模型服务</string>
     <string name="config_llm_domain">服务域名 (例: https://api.example.com)</string>
     <string name="config_llm_key">API 密钥</string>
@@ -21,13 +26,19 @@
     <string name="config_llm_image_support">模型支持图像输入</string>
     <string name="config_llm_image_support_on">视觉模型：直接发送图片</string>
     <string name="config_llm_image_support_off">纯文字模型：先 OCR 再发送文本</string>
+    <string name="config_llm_path_hint">固定对话接口路径：/v1/chat/completions</string>
     <string name="config_save">保存配置</string>
-    <string name="config_test">测试连通</string>
     <string name="config_saved">配置已保存</string>
 
     <!-- Camera -->
     <string name="camera_capture">拍摄</string>
     <string name="camera_permission_denied">需要相机权限</string>
+    <string name="camera_flash_off">闪光灯关</string>
+    <string name="camera_flash_on">闪光灯开</string>
+    <string name="camera_flash_auto">闪光灯自动</string>
+    <string name="camera_zoom">变焦</string>
+    <string name="camera_gallery">从图库导入</string>
+    <string name="camera_no_flash">该设备无闪光灯</string>
 
     <!-- Segmentation -->
     <string name="seg_title">题目切分</string>
@@ -50,15 +61,24 @@
     <string name="answer_original">原题</string>
     <string name="answer_standard">标准答案</string>
     <string name="answer_steps">分步解析</string>
+    <string name="answer_knowledge">考点与知识点</string>
+    <string name="answer_difficulty">难度</string>
+    <string name="answer_hint">提示</string>
     <string name="answer_loading">正在思考中…</string>
     <string name="answer_error">请求失败：%1$s</string>
     <string name="answer_retry">重试</string>
     <string name="answer_next">下一题</string>
     <string name="answer_prev">上一题</string>
+    <string name="answer_step_label">第 %1$d 步</string>
+    <string name="answer_unavailable">（暂未提供）</string>
 
     <!-- Common -->
     <string name="loading">加载中…</string>
     <string name="confirm">确定</string>
     <string name="cancel">取消</string>
     <string name="ok">好的</string>
+
+    <!-- Baidu URLs (verified via official doc, not fabricated) -->
+    <string name="url_baidu_console">https://console.bce.baidu.com/ai/#/ai/overview/index</string>
+    <string name="url_baidu_doc_image_enhance">https://ai.baidu.com/ai-doc/IMAGEPROCESS/Gk5d7g3aq</string>
 </resources>
