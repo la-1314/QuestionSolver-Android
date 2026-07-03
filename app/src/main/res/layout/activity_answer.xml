@@ -10,7 +10,7 @@
         android:layout_height="wrap_content">
 
         <com.google.android.material.appbar.MaterialToolbar
-            android:id="&#64;+id/toolbar"
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="@string/answer_title"
@@ -26,7 +26,7 @@
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="&#64;+id/tvIndex"
+            android:id="@+id/tvIndex"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="12dp"
@@ -46,6 +46,7 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
+                <!-- 原题 -->
                 <com.google.android.material.textview.MaterialTextView
                     style="@style/AnswerLabel"
                     android:layout_width="wrap_content"
@@ -60,7 +61,7 @@
                     app:cardElevation="1dp">
 
                     <ImageView
-                        android:id="&#64;+id/ivQuestion"
+                        android:id="@+id/ivQuestion"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:adjustViewBounds="true"
@@ -68,6 +69,7 @@
                         android:background="@android:color/white" />
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- 标准答案 -->
                 <com.google.android.material.textview.MaterialTextView
                     style="@style/AnswerLabel"
                     android:layout_width="wrap_content"
@@ -76,7 +78,7 @@
                     android:text="@string/answer_standard" />
 
                 <com.google.android.material.textview.MaterialTextView
-                    android:id="&#64;+id/tvAnswer"
+                    android:id="@+id/tvAnswer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
@@ -84,6 +86,7 @@
                     android:background="@color/md_secondary_container"
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
 
+                <!-- 分步解析 -->
                 <com.google.android.material.textview.MaterialTextView
                     style="@style/AnswerLabel"
                     android:layout_width="wrap_content"
@@ -92,7 +95,7 @@
                     android:text="@string/answer_steps" />
 
                 <com.google.android.material.textview.MaterialTextView
-                    android:id="&#64;+id/tvSteps"
+                    android:id="@+id/tvSteps"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
@@ -110,7 +113,7 @@
             android:elevation="4dp">
 
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnPrev"
+                android:id="@+id/btnPrev"
                 style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -118,7 +121,7 @@
                 android:text="@string/answer_prev" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnNext"
+                android:id="@+id/btnNext"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -127,8 +130,9 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- 加载中 -->
     <FrameLayout
-        android:id="&#64;+id/loadingOverlay"
+        android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#CC000000"
@@ -151,7 +155,7 @@
                 app:indicatorColor="@android:color/white" />
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="&#64;+id/tvLoading"
+                android:id="@+id/tvLoading"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
@@ -160,8 +164,9 @@
         </LinearLayout>
     </FrameLayout>
 
+    <!-- 错误态 -->
     <FrameLayout
-        android:id="&#64;+id/errorOverlay"
+        android:id="@+id/errorOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#CC000000"
@@ -179,14 +184,14 @@
             android:padding="24dp">
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="&#64;+id/tvError"
+                android:id="@+id/tvError"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@android:color/white"
                 android:gravity="center" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="&#64;+id/btnRetry"
+                android:id="@+id/btnRetry"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
