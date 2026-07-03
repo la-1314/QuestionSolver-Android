@@ -167,7 +167,7 @@ class AnswerActivity : AppCompatActivity() {
         }
 
         val numView = MaterialTextView(ctx).apply {
-            text = index.toString()
+            this.text = index.toString()
             textSize = 13f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -179,7 +179,7 @@ class AnswerActivity : AppCompatActivity() {
 
         val textView = MaterialTextView(ctx).apply {
             this.text = text
-            textAppearance = com.google.android.material.R.style.TextAppearance_Material3_BodyMedium
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
             setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface, Color.BLACK))
             isClickable = true
             setTextIsSelectable(true)
