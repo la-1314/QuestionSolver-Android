@@ -24,6 +24,13 @@ import java.util.concurrent.TimeUnit
  * 分支逻辑（在客户端内执行）：
  *  - 模型支持图像输入：将处理后单题图片 + 固定提示词直接发送（OpenAI 多模态格式）。
  *  - 模型仅支持文字输入：先 OCR 出文本，再结合提示词发送纯文本请求。
+ *
+ * 提示词要求大模型严格返回结构化 JSON，字段包括：
+ *   answer            —— 标准答案（最终结果）
+ *   steps             —— 分步解析（数组，每步一句）
+ *   hint              —— 解题思路提示
+ *   knowledge_points  —— 考点与知识点（数组）
+ *   difficulty        —— 难度（简单 / 中等 / 困难）
  */
 class LlmApiClient(
     private val config: AppConfig,
@@ -47,7 +54,11 @@ class LlmApiClient(
         val content: JsonArray = buildJsonArray {
             add(buildJsonObject {
                 put("type", "text")
-                put("text", PROMPT)
+                put("text", SYSTEM_PROMPT)
+            })
+            add(buildJsonObject {
+                put("type", "text")
+                put("text", USER_PROMPT_IMAGE)
             })
             add(buildJsonObject {
                 put("type", "image_url")
@@ -68,7 +79,11 @@ class LlmApiClient(
         val content: JsonArray = buildJsonArray {
             add(buildJsonObject {
                 put("type", "text")
-                put("text", PROMPT_TEMPLATE.format(ocrText))
+                put("text", SYSTEM_PROMPT)
+            })
+            add(buildJsonObject {
+                put("type", "text")
+                put("text", USER_PROMPT_TEXT.format(ocrText))
             })
         }
         val body = buildRequestBody(content)
@@ -86,7 +101,9 @@ class LlmApiClient(
             put("model", config.llmModel)
             put("messages", messages)
             put("temperature", 0.2)
-            put("max_tokens", 2048)
+            put("max_tokens", 4096)
+            // 部分兼容服务支持 response_format=json_object，加上无副作用
+            put("response_format", buildJsonObject { put("type", "json_object") })
         }
         return json.encodeToString(JsonObject.serializer(), root)
     }
@@ -130,18 +147,33 @@ class LlmApiClient(
     companion object {
         const val CHAT_PATH = "/v1/chat/completions"
 
-        /** 视觉模型固定提示词。 */
-        const val PROMPT =
-            "你是一位严谨的解题助手。请解答图片中的题目，给出标准答案和分步解析。" +
-            "严格按以下JSON格式返回，不要输出JSON以外的任何内容：\n" +
-            "{\"answer\":\"标准答案\",\"steps\":\"分步解析，可使用换行分步骤说明\"}"
+        /** 系统提示词：定义角色与输出 schema。 */
+        const val SYSTEM_PROMPT =
+            "你是一位严谨的解题助手，擅长中小学及大学各学科题目的解析。" +
+            "请严格按照指定 JSON Schema 返回，禁止输出 JSON 以外的任何文字、解释或 Markdown 代码块标记。" +
+            "JSON Schema 如下：\n" +
+            "{\n" +
+            "  \"answer\": \"string，标准答案，可直接抄写的最终结果\",\n" +
+            "  \"steps\": [\"string，分步解析，每步一句，按推理顺序排列\"],\n" +
+            "  \"hint\": \"string，一句话解题思路或关键提示\",\n" +
+            "  \"knowledge_points\": [\"string，本题涉及的考点/知识点\"],\n" +
+            "  \"difficulty\": \"string，难度等级，取值之一：简单 / 中等 / 困难\"\n" +
+            "}\n" +
+            "字段要求：\n" +
+            "- answer 必填；若题目为客观题，给出字母或数值结果，必要时附简短说明。\n" +
+            "- steps 至少 1 步，每步描述一个推理或计算环节。\n" +
+            "- hint 与 knowledge_points 可空字符串/空数组，但字段必须存在。\n" +
+            "- difficulty 必须从「简单」「中等」「困难」三选一。\n" +
+            "- 所有文字使用中文。"
 
-        /** 纯文本模型固定提示词模板（%s 为 OCR 文本）。 */
-        const val PROMPT_TEMPLATE =
-            "你是一位严谨的解题助手。请解答以下题目，给出标准答案和分步解析。\n" +
-            "题目内容：\n%s\n" +
-            "严格按以下JSON格式返回，不要输出JSON以外的任何内容：\n" +
-            "{\"answer\":\"标准答案\",\"steps\":\"分步解析，可使用换行分步骤说明\"}"
+        /** 视觉模型 user 提示词：发送图片，要求按 schema 输出。 */
+        const val USER_PROMPT_IMAGE =
+            "请解答附图中的题目，并按系统提示的 JSON Schema 严格输出。"
+
+        /** 纯文本模型 user 提示词模板（%s 为 OCR 文本）。 */
+        const val USER_PROMPT_TEXT =
+            "请解答以下题目，并按系统提示的 JSON Schema 严格输出。\n\n" +
+            "题目内容：\n%s"
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
