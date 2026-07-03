@@ -14,6 +14,10 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+# 让后续 job 有权限创建 release 与上传资源
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build APK
@@ -41,9 +45,7 @@ jobs:
 
       - name: Strip sandbox-only configs (proxy + Aliyun mirrors)
         run: |
-          # 1) 删除沙箱专用代理（127.0.0.1:18080 仅在开发沙箱可用）
           sed -i '/systemProp\.http\.proxy/d; /systemProp\.https\.proxy/d' gradle.properties || true
-          # 2) 删除阿里云镜像（CI 在美西，直连 mavenCentral()/google() 更快更稳）
           sed -i '\#maven\.aliyun\.com#d' settings.gradle.kts || true
           sed -i '\#maven\.aliyun\.com#d' build.gradle.kts || true
           echo "==== gradle.properties ===="; cat gradle.properties
@@ -59,6 +61,19 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
+      - name: Rename APK with commit short sha
+        id: apk
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          REPO_NAME=$(echo "$GITHUB_REPOSITORY" | awk -F'/' '{print $2}')
+          TS=$(date -u +'%Y%m%d_%H%M%S')
+          NEW_NAME="${REPO_NAME}-${SHORT_SHA}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/${NEW_NAME}"
+          echo "apk_path=app/build/outputs/apk/debug/${NEW_NAME}" >> $GITHUB_OUTPUT
+          echo "apk_name=${NEW_NAME}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "ts=${TS}" >> $GITHUB_OUTPUT
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -66,6 +81,38 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
           if-no-files-found: error
+
+      - name: Create or update tag for release
+        id: tag
+        run: |
+          TAG="v${{ steps.apk.outputs.ts }}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${TAG}"
+          git push origin "${TAG}"
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Auto Build ${{ steps.tag.outputs.tag }}"
+          body: |
+            # 自动构建产物
+
+            - 提交: ${{ github.sha }}
+            - 分支: ${{ github.ref_name }}
+            - 构建时间: ${{ steps.apk.outputs.ts }}
+            - 触发者: ${{ github.actor }}
+
+            ## 下载
+            下方 Assets 中的 `.apk` 文件可直接 `adb install` 安装到 Android 7.0+ 设备。
+
+            ## 完整构建日志
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          prerelease: false
+          files: ${{ steps.apk.outputs.apk_path }}
+          fail_on_unmatched_files: true
 
       - name: Upload build reports on failure
         if: failure()
