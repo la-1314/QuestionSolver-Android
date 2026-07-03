@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">智能搜题</string>
+    <string name="app_subtitle">拍照搜题 · 分步解析</string>
+
+    <!-- Main -->
+    <string name="main_take_photo">拍摄题目</string>
+    <string name="main_config">服务配置</string>
+    <string name="main_history">历史记录</string>
+    <string name="main_tip">先在服务配置中填入百度与大模型密钥</string>
+
+    <!-- Config -->
+    <string name="config_baidu_section">百度智能云</string>
+    <string name="config_baidu_api_key">百度 API Key</string>
+    <string name="config_baidu_secret_key">百度 Secret Key</string>
+    <string name="config_baidu_hint">鉴权需 API Key 与 Secret Key 同时使用</string>
+    <string name="config_llm_section">大语言模型服务</string>
+    <string name="config_llm_domain">服务域名 (例: https://api.example.com)</string>
+    <string name="config_llm_key">API 密钥</string>
+    <string name="config_llm_model">模型名称 (例: gpt-4o)</string>
+    <string name="config_llm_image_support">模型支持图像输入</string>
+    <string name="config_llm_image_support_on">视觉模型：直接发送图片</string>
+    <string name="config_llm_image_support_off">纯文字模型：先 OCR 再发送文本</string>
+    <string name="config_save">保存配置</string>
+    <string name="config_test">测试连通</string>
+    <string name="config_saved">配置已保存</string>
+
+    <!-- Camera -->
+    <string name="camera_capture">拍摄</string>
+    <string name="camera_permission_denied">需要相机权限</string>
+
+    <!-- Segmentation -->
+    <string name="seg_title">题目切分</string>
+    <string name="seg_use_original">使用原图切分</string>
+    <string name="seg_use_enhanced">使用增强图切分</string>
+    <string name="seg_resegment">重新切分</string>
+    <string name="seg_solve_all">全部解题</string>
+    <string name="seg_no_box">未识别到题目区域，请手动框选</string>
+    <string name="seg_add_box">手动添加框</string>
+    <string name="seg_delete">删除选中</string>
+    <string name="seg_auto_boxes">自动切分（增强）</string>
+    <string name="seg_auto_boxes_orig">自动切分（原图）</string>
+
+    <!-- Crop -->
+    <string name="crop_drag_hint">拖动边框或角点调整区域</string>
+    <string name="crop_confirm">确认</string>
+
+    <!-- Answer -->
+    <string name="answer_title">解题结果</string>
+    <string name="answer_original">原题</string>
+    <string name="answer_standard">标准答案</string>
+    <string name="answer_steps">分步解析</string>
+    <string name="answer_loading">正在思考中…</string>
+    <string name="answer_error">请求失败：%1$s</string>
+    <string name="answer_retry">重试</string>
+    <string name="answer_next">下一题</string>
+    <string name="answer_prev">上一题</string>
+
+    <!-- Common -->
+    <string name="loading">加载中…</string>
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="ok">好的</string>
+</resources>

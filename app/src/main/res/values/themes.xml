@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base application theme (Material Design 3) -->
+    <style name="Theme.QuestionSolver" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/md_primary</item>
+        <item name="colorPrimaryVariant">@color/md_primary_dark</item>
+        <item name="colorOnPrimary">@color/md_on_primary</item>
+        <item name="colorSecondary">@color/md_accent</item>
+        <item name="colorOnSecondary">@color/md_on_primary</item>
+        <item name="colorSurface">@color/md_surface</item>
+        <item name="colorOnSurface">@color/md_on_surface</item>
+        <item name="android:colorBackground">@color/md_background</item>
+        <item name="android:statusBarColor" tools:targetApi="l">@color/md_primary_dark</item>
+    </style>
+
+    <style name="Theme.QuestionSolver.NoActionBar" parent="Theme.QuestionSolver">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <style name="SectionTitleText" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+
+    <style name="AnswerLabel" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+</resources>
