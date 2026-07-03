@@ -39,13 +39,18 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Remove sandbox-only proxy config
+      - name: Strip sandbox-only configs (proxy + Aliyun mirrors)
         run: |
+          # 1) 删除沙箱专用代理（127.0.0.1:18080 仅在开发沙箱可用）
           sed -i '/systemProp\.http\.proxy/d; /systemProp\.https\.proxy/d' gradle.properties || true
-          echo "---- gradle.properties after cleanup ----"
-          cat gradle.properties
+          # 2) 删除阿里云镜像（CI 在美西，直连 mavenCentral()/google() 更快更稳）
+          sed -i '\#maven\.aliyun\.com#d' settings.gradle.kts || true
+          sed -i '\#maven\.aliyun\.com#d' build.gradle.kts || true
+          echo "==== gradle.properties ===="; cat gradle.properties
+          echo "==== settings.gradle.kts ===="; cat settings.gradle.kts
+          echo "==== build.gradle.kts ===="; cat build.gradle.kts
 
-      - name: Generate Gradle Wrapper (jar + properties)
+      - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.7 --distribution-type bin
 
       - name: Show gradle version
