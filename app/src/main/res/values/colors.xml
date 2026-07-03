@@ -6,10 +6,14 @@
     <color name="md_accent">#FF4081</color>
     <color name="md_on_primary">#FFFFFF</color>
     <color name="md_on_surface">#1C1B1F</color>
+    <color name="md_on_surface_variant">#49454F</color>
     <color name="md_surface">#FFFFFF</color>
+    <color name="md_surface_variant">#E7E0EC</color>
     <color name="md_background">#FAFAFA</color>
     <color name="md_secondary_container">#E8EAF6</color>
+    <color name="md_on_secondary_container">#1A237E</color>
     <color name="md_outline">#9E9E9E</color>
+    <color name="md_outline_variant">#CAC4D0</color>
     <color name="md_error">#B00020</color>
     <color name="crop_border">#3F51B5</color>
     <color name="crop_handle">#FF4081</color>
