@@ -58,6 +58,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
 
+    // EXIF 读取（用于根据拍照方向旋转图片）
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

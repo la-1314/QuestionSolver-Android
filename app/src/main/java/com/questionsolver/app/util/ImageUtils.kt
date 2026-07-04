@@ -4,10 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Base64
+import androidx.exifinterface.media.ExifInterface
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -16,6 +18,10 @@ import kotlin.math.roundToInt
 
 /**
  * 图片处理工具：本地轻量化压缩、Base64 编码、按裁剪框裁剪、保存。
+ *
+ * 重点：所有从文件加载的 Bitmap 都会根据 JPEG 的 EXIF orientation 标签进行旋转，
+ * 以解决拍照时手机竖向/横向手持导致图片方向不正确的问题。CameraX 在保存 JPEG 时
+ * 会把传感器方向写入 EXIF，因此读取 EXIF 并应用旋转即可得到与预览一致的最终方向。
  */
 object ImageUtils {
 
@@ -23,11 +29,31 @@ object ImageUtils {
     private const val MAX_EDGE = 1600
     private const val JPEG_QUALITY = 85
 
-    /** 从文件加载并做轻量压缩（保持方向，缩放最长边）。返回压缩后的 Bitmap。 */
+    /** 从文件加载并做轻量压缩（按 EXIF 旋转后缩放最长边）。返回压缩后的 Bitmap。 */
     fun loadCompressed(path: String): Bitmap {
         val opts = BitmapFactory.Options().apply { inSampleSize = 1 }
         val raw = BitmapFactory.decodeFile(path, opts) ?: error("无法解码图片: $path")
-        return scaleToMaxEdge(raw, MAX_EDGE)
+        val oriented = applyExifOrientation(path, raw)
+        return scaleToMaxEdge(oriented, MAX_EDGE)
+    }
+
+    /** 读取 EXIF orientation 并把 Bitmap 旋转到正向。 */
+    private fun applyExifOrientation(path: String, bitmap: Bitmap): Bitmap {
+        return runCatching {
+            val exif = ExifInterface(path)
+            val rotation = when (exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+            )) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+            if (rotation == 0f) bitmap else {
+                val matrix = Matrix().apply { postRotate(rotation) }
+                Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            }
+        }.getOrElse { bitmap }
     }
 
     private fun scaleToMaxEdge(src: Bitmap, maxEdge: Int): Bitmap {

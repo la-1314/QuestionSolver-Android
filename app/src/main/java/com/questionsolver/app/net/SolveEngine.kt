@@ -28,7 +28,7 @@ class SolveEngine(
      * @param index 题号（用于命名中间文件）
      */
     fun solve(item: QuestionItem, index: Int): SolveResult {
-        // 1) 确定用于解题的“处理后图片”
+        // 1) 确定用于解题的"处理后图片"
         val processedPath = prepareProcessedImage(item, index)
 
         // 2) 按模型能力分支
@@ -43,7 +43,7 @@ class SolveEngine(
     }
 
     /**
-     * 生成“处理后图片”路径，遵循增强规则。
+     * 生成"处理后图片"路径，遵循增强规则。
      *  - 未手动修改（自动切分）：做百度图像增强二次预处理。
      *  - 手动框选：保持原图（即 item.sourceImage，已是不做增强的裁剪图）。
      */

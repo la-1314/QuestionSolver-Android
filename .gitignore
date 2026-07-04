@@ -20,3 +20,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# 临时推送脚本（含 token，禁止提交）
+push_*.py
+index.html

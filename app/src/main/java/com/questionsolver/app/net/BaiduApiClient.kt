@@ -72,68 +72,76 @@ class BaiduApiClient(
 
     /**
      * 图像清晰度增强（全局预处理 / 二次预处理）。
+     * 已核实接口：https://aip.baidubce.com/rest/2.0/image-process/v1/image_definition_enhance
+     * 参数：image(base64 编码后 urlencode)，Content-Type 由 FormBody 自动设置为
+     * application/x-www-form-urlencoded。返回 {log_id, image:<base64>}。
      * @param imagePath 图片路径
      * @return 增强后图片字节数组
      */
     fun enhanceDefinition(imagePath: String): ByteArray {
-        val token = fetchAccessToken()
         val base64 = fileToBase64(imagePath)
-        val body = FormBody.Builder().add("image", base64).build()
-        val url = "$ENHANCE_URL?access_token=$token"
-        val req = Request.Builder().url(url).post(body).build()
-        return runWithRetry(req) { raw ->
+        return runWithRetry(ENHANCE_URL, base64, extra = null) { raw ->
             val parsed = json.decodeFromString(BaiduImageEnhanceResponse.serializer(), raw)
             val b64 = parsed.image ?: parsed.result
             b64?.let { base64Decode(it) }
-                ?: throw RuntimeException("图像增强失败：${parsed.error_msg ?: raw}")
+                ?: throw baiduError("图像增强", parsed.error_code, parsed.error_msg, raw)
         }
     }
 
     /**
      * 办公文档版面分析：返回各版面块的位置与类型（用于自动生成题目切分框）。
-     * layout_analysis=true 时返回图、表、标题、段落等的位置。
+     * 已核实接口：https://aip.baidubce.com/rest/2.0/ocr/v1/doc_analysis_office?layout_analysis=true
+     * 参数：image / language_type=CHN_ENG / layout_analysis=true。
+     * 返回 results（每项含 words.words_location，用 left/top/width/height）与 layout（图/表/标题等，含 poly_location）。
      */
     fun layoutAnalysis(imagePath: String): List<RectBox> {
-        val token = fetchAccessToken()
         val base64 = fileToBase64(imagePath)
-        val body = FormBody.Builder()
-            .add("image", base64)
-            .add("language_type", "CHN_ENG")
-            .add("layout_analysis", "true")
-            .build()
-        val url = "$LAYOUT_URL?access_token=$token"
-        val req = Request.Builder().url(url).post(body).build()
-        return runWithRetry(req) { raw ->
+        val extras = linkedMapOf(
+            "language_type" to "CHN_ENG",
+            "layout_analysis" to "true"
+        )
+        return runWithRetry(LAYOUT_URL, base64, extras) { raw ->
             val parsed = json.decodeFromString(BaiduLayoutResponse.serializer(), raw)
             if (parsed.error_code != null) {
-                throw RuntimeException("版面分析失败：${parsed.error_msg ?: raw}")
+                throw baiduError("版面分析", parsed.error_code, parsed.error_msg, raw)
             }
-            // 同时兼容 layout 字段与 words_result 字段
-            val items = (parsed.layout ?: emptyList()) + (parsed.words_result ?: emptyList())
-            items.mapNotNull { it.toRectBox() }
-                .ifEmpty { extractBoxesFromRaw(raw) }
+            // 合并 layout / results / words_result 三种字段，兼容百度不同接口返回
+            val items = (parsed.results ?: emptyList()) +
+                    (parsed.layout ?: emptyList()) +
+                    (parsed.words_result ?: emptyList())
+            val boxes = items.mapNotNull { it.toRectBox() }
+            if (boxes.isNotEmpty()) boxes else extractBoxesFromRaw(raw)
         }
     }
 
     /**
      * 通用文字识别（高精度版）：返回识别到的全文本。
+     * 已核实接口：https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic
+     * 参数：image(base64)。该接口不支持 language_type，故不再传。
      */
     fun accurateOcr(imagePath: String): String {
-        val token = fetchAccessToken()
         val base64 = fileToBase64(imagePath)
-        val body = FormBody.Builder()
-            .add("image", base64)
-            .add("language_type", "CHN_ENG")
-            .build()
-        val url = "$OCR_URL?access_token=$token"
-        val req = Request.Builder().url(url).post(body).build()
-        return runWithRetry(req) { raw ->
+        return runWithRetry(OCR_URL, base64, extra = null) { raw ->
             val parsed = json.decodeFromString(BaiduOcrResponse.serializer(), raw)
             if (parsed.error_code != null) {
-                throw RuntimeException("OCR 失败：${parsed.error_msg ?: raw}")
+                throw baiduError("OCR", parsed.error_code, parsed.error_msg, raw)
             }
             parsed.words_result?.joinToString("\n") { it.words.orEmpty() }.orEmpty()
         }
+    }
+
+    /** 构造带有明确错误码的异常，便于上层向用户暴露真实失败原因。 */
+    private fun baiduError(api: String, code: Int?, msg: String?, raw: String): RuntimeException {
+        val detail = when (code) {
+            110, 111 -> "$api 失败：access_token 失效或过期，请在配置页核对 API Key/Secret Key"
+            17 -> "$api 失败：该百度服务未开通（错误码 17），请到百度智能云控制台领取/开通对应接口"
+            18 -> "$api 失败：QPS 超限（错误码 18），请稍后重试"
+            19 -> "$api 失败：请求总量超限（错误码 19），请检查百度配额"
+            216201 -> "$api 失败：图片格式或尺寸不合法（错误码 216201）"
+            216202 -> "$api 失败：图片为空或 base64 编码错误（错误码 216202）"
+            else -> "$api 失败：${code?.let { "错误码 $it，" } ?: ""}${msg ?: raw}"
+        }
+        return RuntimeException(detail)
     }
 
     /** 兜底：当结构化解析拿不到坐标时，从原始 JSON 中按 poly_location/polygon_location/location 提取外接矩形。 */
@@ -181,8 +189,8 @@ class BaiduApiClient(
 
     private fun JsonElement.asRectBoxOrNull(): RectBox? {
         val o = this as? JsonObject ?: return null
-        val x = o["x"]?.jsonPrimitive?.intOrNull ?: return null
-        val y = o["y"]?.jsonPrimitive?.intOrNull ?: return null
+        val x = o["x"]?.jsonPrimitive?.intOrNull ?: o["left"]?.jsonPrimitive?.intOrNull ?: return null
+        val y = o["y"]?.jsonPrimitive?.intOrNull ?: o["top"]?.jsonPrimitive?.intOrNull ?: return null
         val w = o["width"]?.jsonPrimitive?.intOrNull ?: return null
         val h = o["height"]?.jsonPrimitive?.intOrNull ?: return null
         return RectBox(x, y, w, h)
@@ -200,19 +208,41 @@ class BaiduApiClient(
         return RectBox(l, t, r - l, b - t)
     }
 
-    private fun <T> runWithRetry(req: Request, parser: (String) -> T): T {
+    /**
+     * 带重试的请求执行：第一次用当前 token，若返回 401 或百度错误码 110/111，
+     * 强制刷新 token 后用新 token 重建请求再试一次。其余错误直接抛出。
+     */
+    private fun <T> runWithRetry(
+        baseUrl: String,
+        base64Image: String,
+        extra: Map<String, String>?,
+        parser: (String) -> T
+    ): T {
+        var token = fetchAccessToken()
         var lastError: Exception? = null
         repeat(2) { attempt ->
             try {
+                val builder = FormBody.Builder().add("image", base64Image)
+                extra?.forEach { (k, v) -> builder.add(k, v) }
+                val req = Request.Builder()
+                    .url("$baseUrl?access_token=$token")
+                    .post(builder.build())
+                    .build()
                 client.newCall(req).execute().use { resp ->
                     val raw = resp.body?.string().orEmpty()
                     if (!resp.isSuccessful) {
-                        // token 失效时强制刷新重试一次
-                        if (resp.code == 401 && attempt == 0) {
-                            fetchAccessToken(forceRefresh = true)
-                            throw RuntimeException("token 失效，重试")
+                        if ((resp.code == 401) && attempt == 0) {
+                            token = fetchAccessToken(forceRefresh = true)
+                            throw RuntimeException("token 失效，使用新 token 重试")
                         }
-                        throw RuntimeException("HTTP ${resp.code}: $raw")
+                        throw RuntimeException("HTTP ${resp.code}: ${raw.take(500)}")
+                    }
+                    // 百度返回 200 但 body 含 error_code 110/111 → token 失效，刷新重试
+                    val tokenInvalid = raw.contains("\"error_code\":110") ||
+                            raw.contains("\"error_code\":111")
+                    if (attempt == 0 && tokenInvalid) {
+                        token = fetchAccessToken(forceRefresh = true)
+                        throw RuntimeException("token 失效，使用新 token 重试")
                     }
                     return parser(raw)
                 }

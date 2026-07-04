@@ -5,7 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.view.OrientationEventListener
 import android.view.ScaleGestureDetector
+import android.view.Surface
 import android.view.View
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +61,31 @@ class CameraActivity : AppCompatActivity() {
     private val minZoom = 1.0f
     private val maxZoom = 5.0f
     private var currentZoom = 1.0f
+
+    /**
+     * 通过方向传感器（陀螺仪/加速度计）跟踪设备朝向，并在变化时更新
+     * ImageCapture 的 targetRotation，使拍出的 JPEG EXIF 方向与实际手持方向一致。
+     * 后续 [com.questionsolver.app.util.ImageUtils.loadCompressed] 会读取该 EXIF
+     * 方向把 Bitmap 旋转到正向，从而解决竖拍/横拍图片旋转的问题。
+     */
+    private val orientationListener: OrientationEventListener by lazy {
+        object : OrientationEventListener(this) {
+            private var lastRotation = Surface.ROTATION_0
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val rotation = when {
+                    orientation in 45..134 -> Surface.ROTATION_270
+                    orientation in 135..224 -> Surface.ROTATION_180
+                    orientation in 225..314 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                if (rotation != lastRotation) {
+                    lastRotation = rotation
+                    imageCapture?.targetRotation = rotation
+                }
+            }
+        }
+    }
 
     private val cameraPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -119,6 +146,7 @@ class CameraActivity : AppCompatActivity() {
             imageCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .setFlashMode(flashCycle[flashIndex])
+                .setTargetRotation(windowManager.defaultDisplay.rotation)
                 .build()
 
             try {
@@ -131,6 +159,7 @@ class CameraActivity : AppCompatActivity() {
                 val hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
                 binding.btnFlash.isEnabled = hasFlash
                 binding.btnFlash.alpha = if (hasFlash) 1f else 0.4f
+                updateFlashIcon()
                 if (!hasFlash) {
                     Snackbar.make(binding.root, R.string.camera_no_flash, Snackbar.LENGTH_SHORT).show()
                 }
@@ -185,7 +214,18 @@ class CameraActivity : AppCompatActivity() {
     private fun cycleFlash() {
         flashIndex = (flashIndex + 1) % flashCycle.size
         imageCapture?.flashMode = flashCycle[flashIndex]
+        updateFlashIcon()
         Snackbar.make(binding.root, flashLabels[flashIndex], Snackbar.LENGTH_SHORT).show()
+    }
+
+    /** 闪光灯图标随当前档位切换：OFF→闪电加斜杠，ON→闪电，AUTO→闪电+A。 */
+    private fun updateFlashIcon() {
+        val icon = when (flashCycle[flashIndex]) {
+            ImageCapture.FLASH_MODE_ON -> R.drawable.ic_flash
+            ImageCapture.FLASH_MODE_AUTO -> R.drawable.ic_flash_auto
+            else -> R.drawable.ic_flash_off
+        }
+        binding.btnFlash.setIconResource(icon)
     }
 
     private fun openGallery() {
@@ -311,8 +351,21 @@ class CameraActivity : AppCompatActivity() {
         binding.loadingOverlay.visibility = View.GONE
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (orientationListener.canDetectOrientation()) {
+            orientationListener.enable()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        orientationListener.disable()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        orientationListener.disable()
         cameraExecutor.shutdown()
     }
 }

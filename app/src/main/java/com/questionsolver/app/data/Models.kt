@@ -11,7 +11,7 @@ data class RectBox(val x: Int = 0, val y: Int = 0, val width: Int = 0, val heigh
  * 单题切分项。
  *
  * @param sourceImage 绝对路径：用于解题的图片。
- * @param originalCompressedPath 本地保留的“仅压缩、未做百度增强”的原图路径。
+ * @param originalCompressedPath 本地保留的"仅压缩、未做百度增强"的原图路径。
  * @param enhancedImagePath 百度增强后的图片路径（若该题经过二次增强则为该路径，否则可能为空）。
  * @param isManuallyModified 是否被用户手动框选/修改过。手动修改的题目不再做百度增强。
  * @param rect 归一化裁剪框（0~1），仅用于记录与重绘。
@@ -44,33 +44,54 @@ data class BaiduImageEnhanceResponse(
     val error_msg: String? = null
 )
 
-/** 百度版面分析（doc_analysis_office）返回的单个区域位置。 */
+/** 版面区域坐标，兼容 x/y 与 left/top 两种命名。 */
 @Serializable
 data class BaiduLayoutBox(
     val x: Int = 0,
     val y: Int = 0,
+    val left: Int = 0,
+    val top: Int = 0,
     val width: Int = 0,
     val height: Int = 0
-)
+) {
+    fun toRectBox(): RectBox = RectBox(
+        if (x != 0 || y != 0) x else left,
+        if (x != 0 || y != 0) y else top,
+        width,
+        height
+    )
+}
 
 /** 百度版面分析返回的版面块。 */
 @Serializable
 data class BaiduLayoutItem(
     val type: String? = null,
+    val words_type: String? = null,
     val text: String? = null,
+    val word: String? = null,
+    val words: BaiduLayoutItem? = null,
     val box: BaiduLayoutBox? = null,
     val char_box: BaiduLayoutBox? = null,
     val poly_location: List<List<Int>>? = null,
     val location: BaiduLayoutBox? = null,
+    val words_location: BaiduLayoutBox? = null,
     val lines: List<BaiduLayoutItem>? = null
 ) {
     /** 把版面块的位置统一转换为外接矩形（像素坐标）。 */
     fun toRectBox(): RectBox? {
-        // 1) box: {x,y,width,height}
-        box?.let { return RectBox(it.x, it.y, it.width, it.height) }
-        // 2) location: {x,y,width,height}
-        location?.let { return RectBox(it.x, it.y, it.width, it.height) }
-        // 3) poly_location / polygon_location: 4 个点 [[x,y],...]
+        // 0) doc_analysis_office 的 results 项内层 words.words_location（用 left/top）
+        words?.words_location?.let { return it.toRectBox() }
+        words?.box?.let { return it.toRectBox() }
+        words?.location?.let { return it.toRectBox() }
+        // 1) words_location（用 left/top）
+        words_location?.let { return it.toRectBox() }
+        // 2) box: {x,y,width,height} 或 {left,top,width,height}
+        box?.let { return it.toRectBox() }
+        // 3) location
+        location?.let { return it.toRectBox() }
+        // 4) char_box
+        char_box?.let { return it.toRectBox() }
+        // 5) poly_location / polygon_location: 4 个点 [[x,y],...]
         val pts = poly_location
         if (!pts.isNullOrEmpty() && pts.all { it.size >= 2 }) {
             val xs = pts.map { it[0] }
@@ -82,12 +103,15 @@ data class BaiduLayoutItem(
     }
 }
 
-/** 百度版面分析响应（取其中的 layout/words_result 字段）。 */
+/** 百度版面分析响应。兼容 layout / words_result / results 三种字段命名。 */
 @Serializable
 data class BaiduLayoutResponse(
     val log_id: Long? = null,
     val layout: List<BaiduLayoutItem>? = null,
     val words_result: List<BaiduLayoutItem>? = null,
+    val results: List<BaiduLayoutItem>? = null,
+    val directions: Int? = null,
+    val content: String? = null,
     val error_code: Int? = null,
     val error_msg: String? = null
 )

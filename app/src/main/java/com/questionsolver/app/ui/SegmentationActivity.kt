@@ -88,17 +88,28 @@ class SegmentationActivity : AppCompatActivity() {
         binding.cropOverlay.setBoxes(emptyList())
         showLoading("版面切分中…")
         lifecycleScope.launch {
-            val boxes: List<RectBox> = withContext(Dispatchers.IO) {
+            var boxes: List<RectBox> = emptyList()
+            var errorMsg: String? = null
+            withContext(Dispatchers.IO) {
                 runCatching { baidu.layoutAnalysis(currentSourcePath) }
-                    .getOrElse { emptyList() }
+                    .onSuccess { boxes = it }
+                    .onFailure { errorMsg = it.message ?: it.toString() }
             }
             val (w, h) = ImageUtils.imageSize(currentSourcePath)
                 ?: (binding.cropOverlay.width to binding.cropOverlay.height)
             val normalized = boxes.map { it.toNormalized(w, h) }
             hideLoading()
             if (normalized.isEmpty()) {
-                binding.tvHint.text = getString(R.string.seg_no_box)
-                Snackbar.make(binding.root, R.string.seg_no_box, Snackbar.LENGTH_LONG).show()
+                val hint = errorMsg?.let { "${getString(R.string.seg_no_box)}\n原因：$it" }
+                    ?: getString(R.string.seg_no_box)
+                binding.tvHint.text = hint
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this@SegmentationActivity)
+                    .setTitle("版面切分失败")
+                    .setMessage(errorMsg ?: "未识别到任何题目区域，可手动框选后解题。")
+                    .setPositiveButton("手动框选") { _, _ -> binding.cropOverlay.addEmptyBox() }
+                    .setNegativeButton(R.string.cancel, null)
+                    .setCancelable(true)
+                    .show()
             } else {
                 binding.tvHint.text = getString(R.string.crop_drag_hint)
                 binding.cropOverlay.setBoxes(normalized)

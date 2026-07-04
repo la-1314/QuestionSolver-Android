@@ -84,8 +84,6 @@ app/src/main/java/com/questionsolver/app/
 ./gradlew assembleDebug
 ```
 
-> 注：仓库未提交 `gradle/wrapper/gradle-wrapper.jar`（二进制文件），首次构建时 `gradlew` 会自动下载对应版本的 Gradle；也可手动执行 `gradle wrapper --gradle-version 8.7` 生成。
-
 输出 APK：`app/build/outputs/apk/debug/app-debug.apk`
 
 ## 安装
