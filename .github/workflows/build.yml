@@ -14,7 +14,6 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-# 让后续 job 有权限创建 release 与上传资源
 permissions:
   contents: write
   issues: write
@@ -64,7 +63,11 @@ jobs:
       - name: Report build error as annotations
         if: failure()
         run: |
-          tail -30 /tmp/build-output.log | while IFS= read -r line; do
+          grep -nE 'FAILURE:|^e: |error:|> Task.*FAILED|What went wrong|Caused by:' /tmp/build-output.log | head -40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          echo "===== LAST 20 LINES ====="
+          tail -20 /tmp/build-output.log | while IFS= read -r line; do
             echo "::error::$line"
           done
 
@@ -74,7 +77,6 @@ jobs:
           SHORT_SHA=${GITHUB_SHA::7}
           REPO_NAME=$(echo "$GITHUB_REPOSITORY" | awk -F'/' '{print $2}')
           TS=$(date -u +'%Y%m%d_%H%M%S')
-          # 从 app/build.gradle.kts 提取 versionName
           VERSION=$(grep -E '^\s*versionName' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
           [ -z "$VERSION" ] && VERSION="unknown"
           NEW_NAME="${REPO_NAME}-v${VERSION}-${SHORT_SHA}.apk"
@@ -88,14 +90,12 @@ jobs:
       - name: Generate changelog from commits
         id: changelog
         run: |
-          # 取上一次 release tag 到当前 HEAD 的提交日志
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -n "$LAST_TAG" ]; then
             LOGS=$(git log --pretty=format:"- %s" "${LAST_TAG}..HEAD" 2>/dev/null | head -30)
           else
             LOGS=$(git log --pretty=format:"- %s" -n 20)
           fi
-          # 多行写入 GITHUB_OUTPUT
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "logs<<${EOF}" >> $GITHUB_OUTPUT
           echo "${LOGS}" >> $GITHUB_OUTPUT
