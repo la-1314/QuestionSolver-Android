@@ -8,8 +8,9 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.5.2")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24")
-        classpath("org.jetbrains.kotlin:kotlin-serialization:1.9.24")
+        classpath("com.android.tools.build:gradle:8.7.3")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
+        classpath("org.jetbrains.kotlin:kotlin-serialization:2.3.20")
+        classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.3.20")
     }
 }

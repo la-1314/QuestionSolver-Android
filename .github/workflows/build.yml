@@ -17,6 +17,7 @@ concurrency:
 # 让后续 job 有权限创建 release 与上传资源
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -59,7 +60,17 @@ jobs:
         run: gradle --version
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-output.log
+
+      - name: Report build error as annotations
+        if: failure()
+        run: |
+          tail -30 /tmp/build-output.log | while IFS= read -r line; do
+            echo "::error::$line"
+          done
 
       - name: Rename APK with version + commit short sha
         id: apk

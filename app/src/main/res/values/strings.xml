@@ -10,6 +10,7 @@
     <string name="main_tip">先在服务配置中填入百度与大模型密钥</string>
 
     <!-- Config -->
+    <string name="config_title">服务配置</string>
     <string name="config_baidu_section">百度智能云</string>
     <string name="config_baidu_api_key">百度 API Key</string>
     <string name="config_baidu_secret_key">百度 Secret Key</string>
@@ -51,7 +52,6 @@
     <string name="seg_delete">删除选中</string>
     <string name="seg_another_page">再拍一页</string>
     <string name="seg_multi_select">多选拼接</string>
-    <string name="seg_merge_checked">拼接选中</string>
     <string name="seg_auto_boxes">自动切分（增强）</string>
     <string name="seg_auto_boxes_orig">自动切分（原图）</string>
 
