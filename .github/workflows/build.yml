@@ -40,16 +40,22 @@ jobs:
 
       - name: Install android-37 platform (for compileSdk 37)
         run: |
-          echo "==== Available platforms (grep android-3x) ===="
-          sdkmanager --list 2>/dev/null | grep -E 'platforms;android-3[0-9]' || true
-          echo "==== Available build-tools (grep 3x) ===="
-          sdkmanager --list 2>/dev/null | grep -E 'build-tools;3[0-9]\.' || true
-          echo "==== Trying to install platforms;android-37 ===="
-          yes | sdkmanager "platforms;android-37" 2>&1 || {
-            echo "FAILED to install platforms;android-37"
+          echo "===== Available platforms ====="
+          sdkmanager --list 2>/dev/null | grep -E 'platforms;android-3[0-9]' | while IFS= read -r line; do
+            echo "::error::PLATFORM: $line"
+          done
+          echo "===== Available build-tools ====="
+          sdkmanager --list 2>/dev/null | grep -E 'build-tools;3[0-9]\.' | while IFS= read -r line; do
+            echo "::error::BUILDTOOLS: $line"
+          done
+          echo "===== Trying to install platforms;android-37 ====="
+          if yes | sdkmanager "platforms;android-37" 2>&1 | tee /tmp/sdk-install.log; then
+            echo "::error::RESULT: Successfully installed platforms;android-37"
+          else
+            echo "::error::RESULT: FAILED to install platforms;android-37"
+            cat /tmp/sdk-install.log | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
-          }
-          echo "Successfully installed platforms;android-37"
+          fi
 
       - name: Set up Gradle 8.14.4
         uses: gradle/actions/setup-gradle@v3
