@@ -43,7 +43,7 @@ import com.questionsolver.app.data.QuestionItem
 import com.questionsolver.app.data.RectBox
 import com.questionsolver.app.net.BaiduApiClient
 import com.questionsolver.app.ui.theme.QuestionSolverTheme
-import com.questionsolver.app.ui.view.CropBoxOverlayView
+import com.questionsolver.app.view.CropBoxOverlayView
 import com.questionsolver.app.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -52,9 +52,9 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SuperDialog
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import java.io.File
 
 /**
@@ -140,7 +140,7 @@ class SegmentationActivity : ComponentActivity() {
                     cropOverlay = cropOverlay
                 )
                 if (showSegmentFailDialog) {
-                    SuperDialog(
+                    OverlayDialog(
                         title = "试卷切分失败",
                         show = showSegmentFailDialog,
                         onDismissRequest = { showSegmentFailDialog = false }
@@ -330,13 +330,11 @@ class SegmentationActivity : ComponentActivity() {
                     val outFile = File(workDir, "q_${i + 1}.jpg")
                     val path = ImageUtils.saveCompressedJpeg(cropped, outFile)
                     val isManual = manualFlags.getOrElse(i) { true }
-                    val ocrText = if (isManual) null else pendingOcrTexts.getOrNull(i)
                     QuestionItem(
                         sourceImage = path,
                         originalCompressedPath = SessionData.compressedOriginalPath,
                         isManuallyModified = isManual,
-                        rect = rect,
-                        ocrText = ocrText
+                        rect = rect
                     )
                 }
                 val fromMerged = mergedImagePaths.map { path ->
@@ -344,8 +342,7 @@ class SegmentationActivity : ComponentActivity() {
                         sourceImage = path,
                         originalCompressedPath = SessionData.compressedOriginalPath,
                         isManuallyModified = true,
-                        rect = RectF(),
-                        ocrText = null
+                        rect = RectF()
                     )
                 }
                 fromBoxes + fromMerged

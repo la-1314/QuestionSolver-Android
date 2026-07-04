@@ -61,7 +61,8 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SuperDialog
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -165,7 +166,7 @@ class CameraActivity : ComponentActivity() {
                 )
                 // 增强失败对话框（普通模式）
                 if (showEnhanceErrorDialog) {
-                    SuperDialog(
+                    OverlayDialog(
                         title = "图像增强失败",
                         show = showEnhanceErrorDialog,
                         onDismissRequest = { showEnhanceErrorDialog = false }
