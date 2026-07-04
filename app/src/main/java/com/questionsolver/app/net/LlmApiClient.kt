@@ -150,9 +150,10 @@ class LlmApiClient(
     private fun extractContentAsString(element: JsonElement?): String? {
         if (element == null || element is kotlinx.serialization.json.JsonNull) return null
         return when (element) {
-            is JsonPrimitive -> element.contentOrNull
             is JsonObject -> json.encodeToString(JsonObject.serializer(), element)
             is JsonArray -> json.encodeToString(JsonArray.serializer(), element)
+            // JsonLiteral：返回原始内容（不带引号）；JsonNull 已在前面过滤
+            else -> runCatching { element.jsonPrimitive.content }.getOrNull()
         }
     }
 
