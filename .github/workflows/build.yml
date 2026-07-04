@@ -61,18 +61,38 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Rename APK with commit short sha
+      - name: Rename APK with version + commit short sha
         id: apk
         run: |
           SHORT_SHA=${GITHUB_SHA::7}
           REPO_NAME=$(echo "$GITHUB_REPOSITORY" | awk -F'/' '{print $2}')
           TS=$(date -u +'%Y%m%d_%H%M%S')
-          NEW_NAME="${REPO_NAME}-${SHORT_SHA}.apk"
+          # 从 app/build.gradle.kts 提取 versionName
+          VERSION=$(grep -E '^\s*versionName' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          [ -z "$VERSION" ] && VERSION="unknown"
+          NEW_NAME="${REPO_NAME}-v${VERSION}-${SHORT_SHA}.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/${NEW_NAME}"
           echo "apk_path=app/build/outputs/apk/debug/${NEW_NAME}" >> $GITHUB_OUTPUT
           echo "apk_name=${NEW_NAME}" >> $GITHUB_OUTPUT
           echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "ts=${TS}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          # 取上一次 release tag 到当前 HEAD 的提交日志
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            LOGS=$(git log --pretty=format:"- %s" "${LAST_TAG}..HEAD" 2>/dev/null | head -30)
+          else
+            LOGS=$(git log --pretty=format:"- %s" -n 20)
+          fi
+          # 多行写入 GITHUB_OUTPUT
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "logs<<${EOF}" >> $GITHUB_OUTPUT
+          echo "${LOGS}" >> $GITHUB_OUTPUT
+          echo "${EOF}" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -85,7 +105,7 @@ jobs:
       - name: Create or update tag for release
         id: tag
         run: |
-          TAG="v${{ steps.apk.outputs.ts }}"
+          TAG="v${{ steps.apk.outputs.version }}-${{ steps.apk.outputs.ts }}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -96,14 +116,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          name: "Auto Build ${{ steps.tag.outputs.tag }}"
+          name: "QuestionSolver v${{ steps.apk.outputs.version }} (${{ steps.apk.outputs.short_sha }})"
           body: |
-            # 自动构建产物
+            # QuestionSolver v${{ steps.apk.outputs.version }}
 
+            - 版本号: v${{ steps.apk.outputs.version }}
             - 提交: ${{ github.sha }}
             - 分支: ${{ github.ref_name }}
             - 构建时间: ${{ steps.apk.outputs.ts }}
             - 触发者: ${{ github.actor }}
+
+            ## 更新日志
+
+            ${{ steps.changelog.outputs.logs }}
 
             ## 下载
             下方 Assets 中的 `.apk` 文件可直接 `adb install` 安装到 Android 7.0+ 设备。

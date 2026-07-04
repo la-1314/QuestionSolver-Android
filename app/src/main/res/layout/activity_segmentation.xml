@@ -48,12 +48,20 @@
                 android:text="@string/seg_use_original" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
-        <com.questionsolver.app.view.CropBoxOverlayView
-            android:id="@+id/cropOverlay"
+        <HorizontalScrollView
+            android:id="@+id/scrollCrop"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="@android:color/black" />
+            android:fillViewport="true"
+            android:scrollbars="horizontal">
+
+            <com.questionsolver.app.view.CropBoxOverlayView
+                android:id="@+id/cropOverlay"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:background="@android:color/black" />
+        </HorizontalScrollView>
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/tvHint"
@@ -100,6 +108,44 @@
                 android:text="@string/seg_delete"
                 android:textColor="@color/md_error"
                 app:icon="@android:drawable/ic_menu_delete" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAnotherPage"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/seg_another_page"
+                app:icon="@android:drawable/ic_menu_camera" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMultiSelect"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/seg_multi_select"
+                app:icon="@android:drawable/ic_menu_agenda" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMergeChecked"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/seg_merge_checked"
+                android:visibility="gone"
+                app:icon="@android:drawable/ic_menu_send" />
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
