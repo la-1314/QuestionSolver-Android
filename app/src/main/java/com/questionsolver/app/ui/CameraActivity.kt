@@ -162,30 +162,16 @@ class CameraActivity : ComponentActivity() {
                     onOpenGallery = { openGallery() },
                     onCycleZoomPreset = { cycleZoomPreset() },
                     onZoomChange = { applyZoom(it) },
-                    previewView = previewView
+                    previewView = previewView,
+                    showEnhanceErrorDialog = showEnhanceErrorDialog,
+                    enhanceError = enhanceError,
+                    onUseOriginal = {
+                        showEnhanceErrorDialog = false
+                        pendingUseOriginal?.invoke()
+                        pendingUseOriginal = null
+                    },
+                    onCancelEnhanceError = { showEnhanceErrorDialog = false }
                 )
-                // 增强失败对话框（普通模式）
-                if (showEnhanceErrorDialog) {
-                    OverlayDialog(
-                        title = "图像增强失败",
-                        show = showEnhanceErrorDialog,
-                        onDismissRequest = { showEnhanceErrorDialog = false }
-                    ) {
-                        Text("百度增强接口调用失败：${enhanceError ?: ""}\n是否使用原图继续切分？")
-                        Spacer(Modifier.size(8.dp))
-                        Button(
-                            onClick = {
-                                showEnhanceErrorDialog = false
-                                pendingUseOriginal?.invoke()
-                                pendingUseOriginal = null
-                            },
-                            colors = ButtonDefaults.buttonColorsPrimary()
-                        ) { Text("使用原图") }
-                        Button(
-                            onClick = { showEnhanceErrorDialog = false }
-                        ) { Text("取消") }
-                    }
-                }
             }
         }
 
@@ -420,7 +406,11 @@ private fun CameraScreen(
     onOpenGallery: () -> Unit,
     onCycleZoomPreset: () -> Unit,
     onZoomChange: (Float) -> Unit,
-    previewView: PreviewView
+    previewView: PreviewView,
+    showEnhanceErrorDialog: Boolean,
+    enhanceError: String?,
+    onUseOriginal: () -> Unit,
+    onCancelEnhanceError: () -> Unit
 ) {
     Scaffold { padding ->
         Box(
@@ -520,6 +510,22 @@ private fun CameraScreen(
                             .padding(12.dp)
                     )
                 }
+            }
+        }
+        // 增强失败对话框（必须放在 Scaffold 内，依赖 MiuixPopupHost 渲染弹窗）
+        if (showEnhanceErrorDialog) {
+            OverlayDialog(
+                title = "图像增强失败",
+                show = showEnhanceErrorDialog,
+                onDismissRequest = onCancelEnhanceError
+            ) {
+                Text("百度增强接口调用失败：${enhanceError ?: ""}\n是否使用原图继续切分？")
+                Spacer(Modifier.size(8.dp))
+                Button(
+                    onClick = onUseOriginal,
+                    colors = ButtonDefaults.buttonColorsPrimary()
+                ) { Text("使用原图") }
+                Button(onClick = onCancelEnhanceError) { Text("取消") }
             }
         }
     }
