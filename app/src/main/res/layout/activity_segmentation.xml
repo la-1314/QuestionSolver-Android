@@ -120,33 +120,16 @@
                 app:icon="@android:drawable/ic_menu_camera" />
         </LinearLayout>
 
-        <LinearLayout
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMultiSelect"
+            style="?attr/materialButtonOutlinedStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnMultiSelect"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/seg_multi_select"
-                app:icon="@android:drawable/ic_menu_agenda" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnMergeChecked"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="@string/seg_merge_checked"
-                android:visibility="gone"
-                app:icon="@android:drawable/ic_menu_send" />
-        </LinearLayout>
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp"
+            android:text="@string/seg_multi_select"
+            app:icon="@android:drawable/ic_menu_agenda" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSolveAll"
