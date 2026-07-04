@@ -14,7 +14,8 @@ import java.io.File
  *  - 自动切分、未手动修改的单题图片：执行百度图像增强二次预处理后，再送入解题。
  *  - 手动框选截取出的图片：不再做百度增强，直接送入解题。
  *  - 模型支持图像输入：处理后图片 + 固定提示词 -> /v1/chat/completions。
- *  - 模型仅支持文字输入：先百度 OCR -> 文本 + 提示词 -> /v1/chat/completions。
+ *  - 模型仅支持文字输入：优先用试卷切分接口返回的文字（item.ocrText），
+ *    没有时再调用 accurate_basic OCR -> 文本 + 提示词 -> /v1/chat/completions。
  */
 class SolveEngine(
     private val config: AppConfig,
@@ -36,7 +37,9 @@ class SolveEngine(
             val raw = llm.solveWithImage(processedPath)
             AnswerParser.parse(raw)
         } else {
-            val ocrText = baidu.accurateOcr(processedPath)
+            // 纯文本模型：优先用试卷切分接口已返回的题目文字，避免重复调 OCR
+            val ocrText = item.ocrText?.takeIf { it.isNotBlank() }
+                ?: baidu.accurateOcr(processedPath)
             val raw = llm.solveWithText(ocrText)
             AnswerParser.parse(raw)
         }

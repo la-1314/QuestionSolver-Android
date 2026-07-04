@@ -84,27 +84,34 @@ class SegmentationActivity : AppCompatActivity() {
 
     private fun loadSourceAndSegment() {
         loadSourceBitmapForDisplay()
-        // 清空已有框，调用版面分析
+        // 清空已有框，调用试卷切题识别
         binding.cropOverlay.setBoxes(emptyList())
-        showLoading("版面切分中…")
+        // 试卷切题是异步接口，需轮询，耗时较长
+        showLoading("试卷切题识别中，请稍候…")
         lifecycleScope.launch {
             var boxes: List<RectBox> = emptyList()
+            var ocrTexts: List<String> = emptyList()
             var errorMsg: String? = null
             withContext(Dispatchers.IO) {
-                runCatching { baidu.layoutAnalysis(currentSourcePath) }
-                    .onSuccess { boxes = it }
+                runCatching { baidu.paperCutSegment(currentSourcePath) }
+                    .onSuccess { items ->
+                        boxes = items.map { it.rect }
+                        ocrTexts = items.map { it.text }
+                    }
                     .onFailure { errorMsg = it.message ?: it.toString() }
             }
             val (w, h) = ImageUtils.imageSize(currentSourcePath)
                 ?: (binding.cropOverlay.width to binding.cropOverlay.height)
             val normalized = boxes.map { it.toNormalized(w, h) }
+            // 把切分接口返回的文字暂存，供 solveAll 时填入 QuestionItem
+            pendingOcrTexts = ocrTexts
             hideLoading()
             if (normalized.isEmpty()) {
                 val hint = errorMsg?.let { "${getString(R.string.seg_no_box)}\n原因：$it" }
                     ?: getString(R.string.seg_no_box)
                 binding.tvHint.text = hint
                 com.google.android.material.dialog.MaterialAlertDialogBuilder(this@SegmentationActivity)
-                    .setTitle("版面切分失败")
+                    .setTitle("试卷切分失败")
                     .setMessage(errorMsg ?: "未识别到任何题目区域，可手动框选后解题。")
                     .setPositiveButton("手动框选") { _, _ -> binding.cropOverlay.addEmptyBox() }
                     .setNegativeButton(R.string.cancel, null)
@@ -116,6 +123,9 @@ class SegmentationActivity : AppCompatActivity() {
             }
         }
     }
+
+    /** 切分接口返回的每道题文字，按框顺序对应；手动新增的框无文字。 */
+    private var pendingOcrTexts: List<String> = emptyList()
 
     private fun RectBox.toNormalized(w: Int, h: Int): RectF = RectF(
         x.toFloat() / w,
@@ -144,11 +154,15 @@ class SegmentationActivity : AppCompatActivity() {
                     val cropped = ImageUtils.cropByNormalizedRect(srcBmp, rect)
                     val outFile = File(workDir, "q_${i + 1}.jpg")
                     val path = ImageUtils.saveCompressedJpeg(cropped, outFile)
+                    // 自动切分的框（非手动）才有切分接口返回的文字；手动新增/修改的框无文字
+                    val isManual = manualFlags.getOrElse(i) { true }
+                    val ocrText = if (isManual) null else pendingOcrTexts.getOrNull(i)
                     QuestionItem(
                         sourceImage = path,
                         originalCompressedPath = SessionData.compressedOriginalPath,
-                        isManuallyModified = manualFlags.getOrElse(i) { true },
-                        rect = rect
+                        isManuallyModified = isManual,
+                        rect = rect,
+                        ocrText = ocrText
                     )
                 }
             }

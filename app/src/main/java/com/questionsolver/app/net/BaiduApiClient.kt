@@ -5,17 +5,22 @@ import com.questionsolver.app.data.BaiduImageEnhanceResponse
 import com.questionsolver.app.data.BaiduLayoutResponse
 import com.questionsolver.app.data.BaiduOcrResponse
 import com.questionsolver.app.data.BaiduTokenResponse
+import com.questionsolver.app.data.PaperCutCreateTaskResponse
+import com.questionsolver.app.data.PaperCutItem
+import com.questionsolver.app.data.PaperCutTaskResultResponse
 import com.questionsolver.app.data.RectBox
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -130,15 +135,231 @@ class BaiduApiClient(
         }
     }
 
+    /**
+     * 试卷切题识别（paper_cut_edu_vlm）。
+     *
+     * 该接口面向整页试卷/习题册/作业本场景，基于多模态大模型做**题目级语义切分**，
+     * 同时返回每道题的坐标与文字内容（题干/选项/答案等），因此调用方无需再单独请求 OCR。
+     *
+     * 鉴权：与其它百度 AIP 接口一致，使用同一套 OAuth（API Key + Secret Key → access_token），
+     * 但需在百度智能云控制台**单独开通「试卷切题识别」服务**，否则会返回错误码 17。
+     *
+     * 调用流程（only_split=false，异步）：
+     *  1) POST create_task，提交 image(base64)，返回 task_id
+     *  2) 轮询 get_task_result，直到 task_status=Done
+     *  3) 解析 result 数组，提取每道题的坐标与文字
+     *
+     * @param imagePath 试卷图片路径
+     * @return 切分结果列表（坐标 + 文字）
+     */
+    fun paperCutSegment(imagePath: String): List<PaperCutItem> {
+        val base64 = fileToBase64(imagePath)
+        // 1) 提交任务（only_split=false：切分+识别，返回题目文字）
+        val createBody = buildJsonObject {
+            put("image", base64)
+            put("only_split", false)
+        }.toString()
+
+        val taskId = postJson(PAPER_CUT_CREATE_URL, createBody) { raw ->
+            val parsed = json.decodeFromString(PaperCutCreateTaskResponse.serializer(), raw)
+            parsed.task_id ?: throw baiduError("试卷切分", parsed.error_code, parsed.error_msg, raw)
+        } ?: throw RuntimeException("试卷切分：未返回 task_id")
+
+        // 2) 轮询结果：建议提交后 5~10 秒开始轮询，这里 3 秒起、每次 3 秒、最多 30 次（约 90 秒）
+        Thread.sleep(3000)
+        var lastError: String? = null
+        repeat(30) {
+            val queryBody = buildJsonObject { put("task_id", taskId) }.toString()
+            val done = postJson(PAPER_CUT_RESULT_URL, queryBody) { raw ->
+                val parsed = json.decodeFromString(PaperCutTaskResultResponse.serializer(), raw)
+                if (parsed.error_code != null) {
+                    lastError = parsed.error_msg ?: raw
+                    return@postJson null
+                }
+                when (parsed.task_status?.lowercase()) {
+                    "done", "success", "succeed", "finished" -> parsed.result
+                    "failed", "error" -> {
+                        lastError = "试卷切分任务失败：${parsed.error_msg ?: raw}"
+                        null
+                    }
+                    else -> null // Running / 其它，继续轮询
+                }
+            }
+            if (done != null) {
+                return parsePaperCutResult(done)
+            }
+            if (lastError != null) break
+            Thread.sleep(3000)
+        }
+        throw RuntimeException(lastError ?: "试卷切分超时，请稍后重试")
+    }
+
+    /**
+     * 解析试卷切题结果。兼容多种字段命名：
+     *  - result 可能是数组（每项一道题），也可能直接是单个题目对象
+     *  - 坐标字段：item_box / location / box / position / polygon / poly_location
+     *  - 文字字段：stem / option / answer / text / word / words / content
+     */
+    private fun parsePaperCutResult(result: JsonElement): List<PaperCutItem> {
+        val items = (result as? JsonArray) ?: run {
+            // 单对象包裹，尝试取其中的 results/questions/lines 数组
+            val obj = result as? JsonObject ?: return emptyList()
+            obj["results"]?.jsonArray ?: obj["questions"]?.jsonArray ?: obj["lines"]?.jsonArray
+                ?: return emptyList()
+        }
+        return items.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val rect = extractRectFromItem(obj) ?: return@mapNotNull null
+            val text = extractTextFromItem(obj).trim()
+            PaperCutItem(rect, text)
+        }
+    }
+
+    /** 从题目对象中提取外接矩形（像素坐标）。兼容 item_box/location/box/position/polygon 等。 */
+    private fun extractRectFromItem(obj: JsonObject): RectBox? {
+        // 1) 对象型坐标：{x,y,width,height} 或 {left,top,width,height}
+        listOf("item_box", "location", "box", "words_location").forEach { key ->
+            (obj[key] as? JsonObject)?.asRectBoxOrNull()?.let { return it }
+        }
+        // 2) 数组型坐标：[x1,y1,x2,y2]（左上+右下）或 [[x,y],[x,y],...]（多边形）
+        listOf("position", "polygon", "poly_location", "polygon_location").forEach { key ->
+            obj[key]?.let { el ->
+                el.asRectFromPointsOrNull()?.let { return it }
+            }
+        }
+        // 3) 字符串型坐标："x,y,w,h"
+        obj["box"]?.jsonPrimitive?.contentOrNull?.let { parseBoxString(it) }?.let { return it }
+        return null
+    }
+
+    /** 从题目对象中提取所有文字内容并拼接为一段文本。 */
+    private fun extractTextFromItem(obj: JsonObject): String {
+        val parts = mutableListOf<String>()
+
+        // 结构化字段：stem(题干) / option(选项) / answer(答案)
+        fun addField(key: String, prefix: String = "") {
+            when (val el = obj[key]) {
+                is JsonPrimitive -> el.contentOrNull?.takeIf { it.isNotBlank() }?.let {
+                    parts.add(if (prefix.isEmpty()) it else "$prefix：$it")
+                }
+                is JsonObject -> el["text"]?.jsonPrimitive?.contentOrNull?.let {
+                    parts.add(if (prefix.isEmpty()) it else "$prefix：$it")
+                }
+                is JsonArray -> {
+                    val texts = el.mapNotNull { e ->
+                        when (e) {
+                            is JsonPrimitive -> e.contentOrNull
+                            is JsonObject -> e["text"]?.jsonPrimitive?.contentOrNull
+                                ?: e["word"]?.jsonPrimitive?.contentOrNull
+                                ?: e["content"]?.jsonPrimitive?.contentOrNull
+                            else -> null
+                        }
+                    }.filter { it.isNotBlank() }
+                    if (texts.isNotEmpty()) {
+                        parts.add(if (prefix.isEmpty()) texts.joinToString(" ") else "$prefix：${texts.joinToString(" ")}")
+                    }
+                }
+                else -> Unit
+            }
+        }
+
+        addField("stem", "题干")
+        addField("option", "选项")
+        // answer 可能是标准答案，解题时不一定需要，但保留以便 LLM 参考
+        addField("answer", "答案")
+        addField("type", "题型")
+
+        // 兜底：直接取 text/word/words/content/content 字段
+        if (parts.isEmpty()) {
+            listOf("text", "word", "words", "content", "recognize_text").forEach { key ->
+                (obj[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let {
+                    parts.add(it)
+                }
+            }
+        }
+        return parts.joinToString("\n").ifEmpty { "" }
+    }
+
+    /** 把多边形点数组 [[x,y],...] 或 [x1,y1,x2,y2,...] 转为外接矩形。 */
+    private fun JsonElement.asRectFromPointsOrNull(): RectBox? {
+        val arr = this as? JsonArray ?: return null
+        if (arr.isEmpty()) return null
+        // 形态1：[[x,y],[x,y],...]
+        if (arr[0] is JsonArray) {
+            val pts = arr.mapNotNull { p ->
+                val pa = p as? JsonArray ?: return@mapNotNull null
+                if (pa.size >= 2) {
+                    val x = pa[0].jsonPrimitive.intOrNull ?: return@mapNotNull null
+                    val y = pa[1].jsonPrimitive.intOrNull ?: return@mapNotNull null
+                    x to y
+                } else null
+            }
+            if (pts.isNotEmpty()) return boundingBox(pts)
+        }
+        // 形态2：[x1,y1,x2,y2,...]（扁平）
+        val flat = arr.mapNotNull { it.jsonPrimitive.intOrNull }
+        if (flat.size >= 4) {
+            // 若正好 4 个，视作 left,top,right,bottom
+            if (flat.size == 4) {
+                val l = minOf(flat[0], flat[2]); val r = maxOf(flat[0], flat[2])
+                val t = minOf(flat[1], flat[3]); val b = maxOf(flat[1], flat[3])
+                return RectBox(l, t, r - l, b - t)
+            }
+            // 偶数个，按 (x,y) 对解析
+            val pts = flat.chunked(2).mapNotNull { c ->
+                if (c.size >= 2) c[0] to c[1] else null
+            }
+            if (pts.isNotEmpty()) return boundingBox(pts)
+        }
+        return null
+    }
+
+    /** 发送 JSON POST 请求并在成功时回调解析；失败/401 重试一次（刷新 token）。 */
+    private fun <T> postJson(baseUrl: String, bodyJson: String, parser: (String) -> T?): T? {
+        var token = fetchAccessToken()
+        var lastError: Exception? = null
+        repeat(2) { attempt ->
+            try {
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val req = Request.Builder()
+                    .url("$baseUrl?access_token=$token")
+                    .header("Content-Type", "application/json")
+                    .post(bodyJson.toRequestBody(mediaType))
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    val raw = resp.body?.string().orEmpty()
+                    if (!resp.isSuccessful) {
+                        if (resp.code == 401 && attempt == 0) {
+                            token = fetchAccessToken(forceRefresh = true)
+                            throw RuntimeException("token 失效，使用新 token 重试")
+                        }
+                        throw RuntimeException("HTTP ${resp.code}: ${raw.take(500)}")
+                    }
+                    val tokenInvalid = raw.contains("\"error_code\":110") ||
+                            raw.contains("\"error_code\":111")
+                    if (attempt == 0 && tokenInvalid) {
+                        token = fetchAccessToken(forceRefresh = true)
+                        throw RuntimeException("token 失效，使用新 token 重试")
+                    }
+                    return parser(raw)
+                }
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw lastError ?: RuntimeException("未知错误")
+    }
+
     /** 构造带有明确错误码的异常，便于上层向用户暴露真实失败原因。 */
     private fun baiduError(api: String, code: Int?, msg: String?, raw: String): RuntimeException {
         val detail = when (code) {
             110, 111 -> "$api 失败：access_token 失效或过期，请在配置页核对 API Key/Secret Key"
-            17 -> "$api 失败：该百度服务未开通（错误码 17），请到百度智能云控制台领取/开通对应接口"
+            17 -> "$api 失败：该百度服务未开通（错误码 17），请到百度智能云控制台领取/开通「试卷切题识别」服务"
             18 -> "$api 失败：QPS 超限（错误码 18），请稍后重试"
             19 -> "$api 失败：请求总量超限（错误码 19），请检查百度配额"
             216201 -> "$api 失败：图片格式或尺寸不合法（错误码 216201）"
             216202 -> "$api 失败：图片为空或 base64 编码错误（错误码 216202）"
+            282801 -> "$api 失败：任务不存在或已过期（错误码 282801）"
             else -> "$api 失败：${code?.let { "错误码 $it，" } ?: ""}${msg ?: raw}"
         }
         return RuntimeException(detail)
@@ -258,6 +479,9 @@ class BaiduApiClient(
         private const val ENHANCE_URL = "https://aip.baidubce.com/rest/2.0/image-process/v1/image_definition_enhance"
         private const val LAYOUT_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/doc_analysis_office"
         private const val OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic"
+        // 试卷切题识别（教育场景 OCR）：异步接口，create_task 提交 → get_task_result 轮询
+        private const val PAPER_CUT_CREATE_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/paper_cut_edu_vlm/create_task"
+        private const val PAPER_CUT_RESULT_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/paper_cut_edu_vlm/get_task_result"
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

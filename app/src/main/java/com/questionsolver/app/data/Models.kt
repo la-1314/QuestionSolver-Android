@@ -2,6 +2,7 @@ package com.questionsolver.app.data
 
 import android.graphics.RectF
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /** 矩形区域（像素坐标，用于版面分析返回）。 */
 @Serializable
@@ -15,13 +16,16 @@ data class RectBox(val x: Int = 0, val y: Int = 0, val width: Int = 0, val heigh
  * @param enhancedImagePath 百度增强后的图片路径（若该题经过二次增强则为该路径，否则可能为空）。
  * @param isManuallyModified 是否被用户手动框选/修改过。手动修改的题目不再做百度增强。
  * @param rect 归一化裁剪框（0~1），仅用于记录与重绘。
+ * @param ocrText 试卷切题接口（paper_cut_edu_vlm）返回的题目文字。非空时可直接送纯文本
+ *                大模型，无需再调用 accurate_basic OCR。
  */
 data class QuestionItem(
     var sourceImage: String,
     val originalCompressedPath: String,
     var enhancedImagePath: String? = null,
     var isManuallyModified: Boolean = false,
-    val rect: RectF = RectF()
+    val rect: RectF = RectF(),
+    var ocrText: String? = null
 )
 
 /** 百度 access_token 响应。 */
@@ -125,6 +129,43 @@ data class BaiduOcrResponse(
     val log_id: Long? = null,
     val words_result: List<BaiduOcrWord>? = null,
     val words_result_num: Int = 0,
+    val error_code: Int? = null,
+    val error_msg: String? = null
+)
+
+/**
+ * 试卷切题识别（paper_cut_edu_vlm）单道题目切分结果。
+ *
+ * 该接口在 only_split=false 时会同时返回题目坐标与结构化文字（题干/选项/答案等），
+ * 因此调用方无需再单独请求 OCR。
+ *
+ * 字段做了宽松兼容：百度不同版本返回字段名可能为 item_box/location/box 等，
+ * 文字字段可能为 stem/option/answer/text/word 等，统一在 BaiduApiClient 中聚合为
+ * [PaperCutItem]。
+ */
+data class PaperCutItem(
+    /** 题目区域外接矩形（像素坐标，相对原图）。 */
+    val rect: RectBox,
+    /** 该题的完整文字内容（题干+选项+其它，已拼接为一段文本）。 */
+    val text: String
+)
+
+/** paper_cut_edu_vlm create_task 响应。 */
+@Serializable
+data class PaperCutCreateTaskResponse(
+    val log_id: Long? = null,
+    val task_id: String? = null,
+    val error_code: Int? = null,
+    val error_msg: String? = null
+)
+
+/** paper_cut_edu_vlm get_task_result 响应。 */
+@Serializable
+data class PaperCutTaskResultResponse(
+    val log_id: Long? = null,
+    val task_id: String? = null,
+    val task_status: String? = null,
+    val result: kotlinx.serialization.json.JsonElement? = null,
     val error_code: Int? = null,
     val error_msg: String? = null
 )
