@@ -137,4 +137,42 @@ object ImageUtils {
             pixelRect.bottom.toFloat() / height
         )
     }
+
+    /**
+     * 将多页 Bitmap 按顺序纵向拼接为一张长图。
+     *
+     * - 各页等宽对齐：以最大宽度为基准，较窄的页居中绘制于白色背景上；
+     * - 返回拼接后的新 Bitmap（ARGB_8888）；
+     * - 同时返回每页在拼接图中的「起始 Y / 结束 Y」（像素），用于跨页判断与分页裁剪。
+     *
+     * @return (stitchedBitmap, pageRanges) 其中 pageRanges[i] = (startY, endY) 像素坐标
+     */
+    fun stitchVertically(pages: List<Bitmap>): Pair<Bitmap, List<Pair<Int, Int>>> {
+        require(pages.isNotEmpty()) { "至少需要一页" }
+        val maxW = pages.maxOf { it.width }
+        // 页间距：留少量白边便于视觉分隔
+        val gap = (maxW * 0.015f).roundToInt().coerceIn(2, 24)
+        val totalH = pages.sumOf { it.height } + gap * (pages.size - 1)
+        val out = Bitmap.createBitmap(maxW, totalH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        canvas.drawRect(0f, 0f, maxW.toFloat(), totalH.toFloat(), bg)
+        val ranges = mutableListOf<Pair<Int, Int>>()
+        var y = 0
+        for ((idx, bmp) in pages.withIndex()) {
+            val left = ((maxW - bmp.width) / 2f)
+            canvas.drawBitmap(bmp, left, y.toFloat(), null)
+            ranges.add(y to y + bmp.height)
+            y += bmp.height + gap
+        }
+        return out to ranges
+    }
+
+    /**
+     * 从拼接长图中按归一化坐标裁剪。对跨页框天然有效：裁剪区域横跨页边界时，
+     * 结果即为两页对应区域的纵向拼接（即「按顺序贴在一起」）。
+     */
+    fun cropFromStitched(stitched: Bitmap, normalizedRect: RectF): Bitmap {
+        return cropByNormalizedRect(stitched, normalizedRect)
+    }
 }

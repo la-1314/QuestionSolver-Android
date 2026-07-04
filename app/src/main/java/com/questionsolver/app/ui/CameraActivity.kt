@@ -44,6 +44,15 @@ class CameraActivity : AppCompatActivity() {
     private var camera: Camera? = null
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
+    /**
+     * 返回模式：当从切分页「再拍一页」唤起时设为 true。
+     * 此时拍摄/导入完成后不再跳转 SegmentationActivity，而是把压缩原图路径与增强全图路径
+     * 通过 setResult 返回给调用方（SegmentationActivity），由其追加为新页。
+     */
+    private val returnMode: Boolean by lazy {
+        intent.getBooleanExtra(EXTRA_RETURN_MODE, false)
+    }
+
     // 闪光灯循环：OFF -> ON -> AUTO -> OFF
     private val flashCycle = intArrayOf(
         ImageCapture.FLASH_MODE_OFF,
@@ -284,7 +293,7 @@ class CameraActivity : AppCompatActivity() {
      * 拍摄/导入后流程：
      *  1) 本地轻量压缩原图并保存（"仅压缩、未做百度增强"的原图）；
      *  2) 默认调用百度图像增强做全局预处理，保存增强全图；
-     *  3) 进入切分页（SessionData 携带两条路径）。
+     *  3) 返回模式 → setResult 返回路径；普通模式 → 进入切分页。
      */
     private fun processAfterCapture(rawFile: File, workDir: File) {
         val cfg = AppConfig.load(this)
@@ -304,32 +313,57 @@ class CameraActivity : AppCompatActivity() {
                     out.writeBytes(bytes)
                     out.absolutePath
                 }
-                SessionData.clear()
-                SessionData.workDirPath = workDir.absolutePath
-                SessionData.compressedOriginalPath = compressedPath
-                SessionData.enhancedFullPath = enhancedPath
-                SessionData.layoutUsedSource = SessionData.SOURCE_ENHANCED
                 hideLoading()
-                startActivity(Intent(this@CameraActivity, SegmentationActivity::class.java))
-                finish()
+                finishCapture(compressedPath, enhancedPath, workDir.absolutePath, null)
             } catch (e: Exception) {
                 hideLoading()
-                // 增强失败时仍可使用原图进入切分
-                SessionData.clear()
-                SessionData.workDirPath = workDir.absolutePath
-                SessionData.compressedOriginalPath = compressedPath.ifBlank { compressedPathSafe(workDir) }
-                SessionData.enhancedFullPath = compressedPath.ifBlank { compressedPathSafe(workDir) }
-                MaterialAlertDialogBuilder(this@CameraActivity)
-                    .setTitle("图像增强失败")
-                    .setMessage("百度增强接口调用失败：${e.message}\n是否使用原图继续切分？")
-                    .setPositiveButton(R.string.ok) { _, _ ->
-                        startActivity(Intent(this@CameraActivity, SegmentationActivity::class.java))
-                        finish()
-                    }
-                    .setNegativeButton(R.string.cancel) { _, _ -> }
-                    .setCancelable(false)
-                    .show()
+                // 增强失败时仍可使用原图继续
+                val safeCompressed = compressedPath.ifBlank { compressedPathSafe(workDir) }
+                if (returnMode) {
+                    // 返回模式下：增强失败也直接返回原图路径，由调用方决定
+                    finishCapture(safeCompressed, safeCompressed, workDir.absolutePath, e.message)
+                } else {
+                    MaterialAlertDialogBuilder(this@CameraActivity)
+                        .setTitle("图像增强失败")
+                        .setMessage("百度增强接口调用失败：${e.message}\n是否使用原图继续切分？")
+                        .setPositiveButton(R.string.ok) { _, _ ->
+                            finishCapture(safeCompressed, safeCompressed, workDir.absolutePath, null)
+                        }
+                        .setNegativeButton(R.string.cancel) { _, _ -> }
+                        .setCancelable(false)
+                        .show()
+                }
             }
+        }
+    }
+
+    /**
+     * 统一收尾：返回模式 → setResult；普通模式 → 写入 SessionData 并跳转切分页。
+     */
+    private fun finishCapture(
+        compressedPath: String,
+        enhancedPath: String,
+        workDirPath: String,
+        enhanceError: String?
+    ) {
+        if (returnMode) {
+            val data = Intent().apply {
+                putExtra(EXTRA_RESULT_COMPRESSED, compressedPath)
+                putExtra(EXTRA_RESULT_ENHANCED, enhancedPath)
+                putExtra(EXTRA_RESULT_WORK_DIR, workDirPath)
+                enhanceError?.let { putExtra(EXTRA_RESULT_ENHANCE_ERROR, it) }
+            }
+            setResult(RESULT_OK, data)
+            finish()
+        } else {
+            SessionData.clear()
+            SessionData.resetToSinglePage(
+                PageData(compressedPath, enhancedPath),
+                workDirPath
+            )
+            SessionData.layoutUsedSource = SessionData.SOURCE_ENHANCED
+            startActivity(Intent(this@CameraActivity, SegmentationActivity::class.java))
+            finish()
         }
     }
 
@@ -367,5 +401,18 @@ class CameraActivity : AppCompatActivity() {
         super.onDestroy()
         orientationListener.disable()
         cameraExecutor.shutdown()
+    }
+
+    companion object {
+        /** Intent extra：设为 true 时进入「返回模式」。 */
+        const val EXTRA_RETURN_MODE = "return_mode"
+        /** 返回结果 extra：压缩原图路径。 */
+        const val EXTRA_RESULT_COMPRESSED = "result_compressed"
+        /** 返回结果 extra：增强全图路径。 */
+        const val EXTRA_RESULT_ENHANCED = "result_enhanced"
+        /** 返回结果 extra：工作目录路径。 */
+        const val EXTRA_RESULT_WORK_DIR = "result_work_dir"
+        /** 返回结果 extra：增强失败时的错误信息（可选）。 */
+        const val EXTRA_RESULT_ENHANCE_ERROR = "result_enhance_error"
     }
 }

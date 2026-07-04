@@ -9,14 +9,16 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.max
 import kotlin.math.min
 
 /**
  * 题目框选叠加视图。
  *
- * - 自身负责按 fit-center 绘制底图，并在其上叠加可拖拽/可缩放的裁剪框。
- * - 框坐标统一使用"相对位图的归一化坐标 (0~1)"，与具体显示尺寸解耦。
+ * - 自身负责按 fit-center 绘制底图（单页或多页纵向拼接），并在其上叠加可拖拽/可缩放的裁剪框。
+ * - 框坐标统一使用"相对底图的归一化坐标 (0~1)"，与具体显示尺寸解耦。
+ * - 多页支持：通过 [pageBoundaries] 传入每页结束 Y 的归一化坐标（0~1），用于绘制页边界、
+ *   判断跨页框、绘制页码标签。
+ * - 视觉辅助：每个框使用不同颜色（调色板循环）、左上角带数字角标圆徽；跨页框额外标注「跨页」。
  * - 交互：
  *    触到角点/边中点 → 缩放对应边；
  *    触到框内部 → 拖动整框；
@@ -35,23 +37,39 @@ class CropBoxOverlayView @JvmOverloads constructor(
     private val manualFlags = mutableListOf<Boolean>()
     private var selectedIndex = -1
 
+    /**
+     * 各页结束 Y 的归一化坐标（0~1，递增，最后一项为 1.0）。
+     * 例如两页时若第一页占总高的 55%，则为 [0.55, 1.0]。
+     * 空列表表示单页模式（不绘制页边界）。
+     */
+    private var pageBoundaries: List<Float> = emptyList()
+
     // 图片在视图中的显示矩形（fit-center）
     private var displayRect = RectF()
     private var imgScale = 1f
 
+    /** 框颜色调色板：循环使用，确保相邻框颜色不同。 */
+    private val boxColorPalette = intArrayOf(
+        Color.parseColor("#3F51B5"), // 靛蓝
+        Color.parseColor("#00897B"), // 青绿
+        Color.parseColor("#8E24AA"), // 紫
+        Color.parseColor("#3949AB"), // 蓝
+        Color.parseColor("#43A047"), // 绿
+        Color.parseColor("#1E88E5"), // 亮蓝
+        Color.parseColor("#00ACC1"), // 青
+        Color.parseColor("#7CB342")  // 黄绿
+    )
+    /** 跨页框专用颜色（醒目橙）。 */
+    private val crossPageColor = Color.parseColor("#FB8C00")
+
     private val boxStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = dp(3f)
-        color = Color.parseColor("#3F51B5")
     }
     private val selectedStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = dp(4f)
         color = Color.parseColor("#FF4081")
-    }
-    private val fillDim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        color = Color.parseColor("#33000000")
     }
     private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -62,10 +80,43 @@ class CropBoxOverlayView @JvmOverloads constructor(
         strokeWidth = dp(1.5f)
         color = Color.WHITE
     }
+    /** 数字角标圆徽底色（随框颜色变化，绘制前会设置 color）。 */
+    private val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    private val badgeStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(1.5f)
+        color = Color.WHITE
+    }
     private val numberPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = dp(14f)
+        textSize = dp(13f)
         isFakeBoldText = true
+        textAlign = Paint.Align.CENTER
+    }
+    /** 跨页标签文字。 */
+    private val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = dp(10f)
+        isFakeBoldText = true
+        textAlign = Paint.Align.CENTER
+    }
+    /** 页边界虚线。 */
+    private val pageDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(1.5f)
+        color = Color.parseColor("#AAFF5722")
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(dp(8f), dp(6f)), 0f)
+    }
+    private val pageLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#E65100")
+        textSize = dp(11f)
+        isFakeBoldText = true
+    }
+    private val pageLabelBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.parseColor("#CCFFFFFF")
     }
 
     private enum class Handle { TL, TR, BR, BL, T, R, B, L }
@@ -83,6 +134,14 @@ class CropBoxOverlayView @JvmOverloads constructor(
         invalidate()
     }
 
+    /**
+     * 设置页边界（归一化 Y，递增，末项为 1.0）。空列表表示单页。
+     */
+    fun setPageBoundaries(boundaries: List<Float>) {
+        this.pageBoundaries = boundaries
+        invalidate()
+    }
+
     fun setBoxes(list: List<RectF>) {
         boxes.clear()
         boxes.addAll(list.map { RectF(it) })
@@ -95,6 +154,17 @@ class CropBoxOverlayView @JvmOverloads constructor(
     fun getBoxes(): List<RectF> = boxes.map { RectF(it) }
 
     fun getManualFlags(): List<Boolean> = manualFlags.toList()
+
+    /** 判断指定框是否跨页（横跨任意一条页边界）。 */
+    fun isCrossPage(index: Int): Boolean {
+        if (index !in boxes.indices || pageBoundaries.isEmpty()) return false
+        val b = boxes[index]
+        // 排除末尾的 1.0 边界
+        return pageBoundaries.dropLast(1).any { boundary -> b.top < boundary && b.bottom > boundary }
+    }
+
+    /** 跨页框数量。 */
+    fun crossPageCount(): Int = boxes.indices.count { isCrossPage(it) }
 
     private fun markManual(index: Int) {
         if (index in manualFlags.indices) {
@@ -162,20 +232,64 @@ class CropBoxOverlayView @JvmOverloads constructor(
         if (displayRect.width() <= 0) computeDisplayRect()
         // 底图
         canvas.drawBitmap(bmp, null, displayRect, null)
+        // 页边界虚线 + 页码标签
+        if (pageBoundaries.isNotEmpty()) {
+            pageBoundaries.dropLast(1).forEachIndexed { i, boundary ->
+                val y = displayRect.top + boundary * displayRect.height()
+                canvas.drawLine(displayRect.left, y, displayRect.right, y, pageDividerPaint)
+                // 页码标签：边界上方标注「第 i+1 页 / 第 i+2 页」
+                val label = "第${i + 1}页 ↑ / 第${i + 2}页 ↓"
+                val tw = pageLabelPaint.measureText(label)
+                val pad = dp(4f)
+                val lx = displayRect.left + dp(4f)
+                val ly = y - dp(14f)
+                canvas.drawRect(lx - pad, ly - dp(11f), lx + tw + pad, ly + dp(3f), pageLabelBgPaint)
+                canvas.drawText(label, lx, ly, pageLabelPaint)
+            }
+        }
         // 框
         boxes.forEachIndexed { i, box ->
             val screen = toScreen(box)
-            // 暗化非选中框外侧（简化：仅描边）
+            val cross = isCrossPage(i)
+            val color = if (cross) crossPageColor else boxColorPalette[i % boxColorPalette.size]
+            boxStroke.color = color
             val paint = if (i == selectedIndex) selectedStroke else boxStroke
             canvas.drawRect(screen, paint)
-            // 编号
-            val label = (i + 1).toString()
-            canvas.drawText(label, screen.left + dp(4f), screen.top + dp(14f), numberPaint)
+            // 数字角标圆徽
+            drawBadge(canvas, screen, i + 1, color)
+            // 跨页标签
+            if (cross) {
+                val tag = "跨页"
+                val tw = tagPaint.measureText(tag)
+                val pad = dp(3f)
+                val tx = screen.right - tw - pad * 2
+                val ty = screen.top
+                tagPaint.color = color
+                canvas.drawRoundRect(
+                    tx, ty, screen.right, ty + dp(16f),
+                    dp(3f), dp(3f), tagPaint
+                )
+                tagPaint.color = Color.WHITE
+                canvas.drawText(tag, screen.right - tw / 2 - pad, ty + dp(12f), tagPaint)
+            }
             // 选中框绘制手柄
             if (i == selectedIndex) {
                 drawHandles(canvas, screen)
             }
         }
+    }
+
+    /** 绘制左上角数字角标圆徽。 */
+    private fun drawBadge(canvas: Canvas, r: RectF, number: Int, color: Int) {
+        val radius = dp(11f)
+        val cx = r.left + radius
+        val cy = r.top + radius
+        badgePaint.color = color
+        canvas.drawCircle(cx, cy, radius, badgePaint)
+        canvas.drawCircle(cx, cy, radius, badgeStroke)
+        // 数字垂直居中：drawText 基线修正
+        val baseline = cy - (numberPaint.descent() + numberPaint.ascent()) / 2
+        canvas.drawText(number.toString(), cx, baseline, numberPaint)
     }
 
     private fun drawHandles(canvas: Canvas, r: RectF) {

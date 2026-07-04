@@ -100,6 +100,16 @@
                 android:text="@string/seg_delete"
                 android:textColor="@color/md_error"
                 app:icon="@android:drawable/ic_menu_delete" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAnotherPage"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/seg_another_page"
+                app:icon="@android:drawable/ic_menu_camera" />
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton

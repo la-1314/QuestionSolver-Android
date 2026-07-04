@@ -49,6 +49,7 @@
     <string name="seg_no_box">未识别到题目区域，请手动框选</string>
     <string name="seg_add_box">手动添加框</string>
     <string name="seg_delete">删除选中</string>
+    <string name="seg_another_page">再拍一页</string>
     <string name="seg_auto_boxes">自动切分（增强）</string>
     <string name="seg_auto_boxes_orig">自动切分（原图）</string>
 
