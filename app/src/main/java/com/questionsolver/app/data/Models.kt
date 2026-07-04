@@ -2,6 +2,7 @@ package com.questionsolver.app.data
 
 import android.graphics.RectF
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /** 矩形区域（像素坐标，用于版面分析返回）。 */
 @Serializable
@@ -11,7 +12,7 @@ data class RectBox(val x: Int = 0, val y: Int = 0, val width: Int = 0, val heigh
  * 单题切分项。
  *
  * @param sourceImage 绝对路径：用于解题的图片。
- * @param originalCompressedPath 本地保留的"仅压缩、未做百度增强"的原图路径。
+ * @param originalCompressedPath 本地保留的“仅压缩、未做百度增强”的原图路径。
  * @param enhancedImagePath 百度增强后的图片路径（若该题经过二次增强则为该路径，否则可能为空）。
  * @param isManuallyModified 是否被用户手动框选/修改过。手动修改的题目不再做百度增强。
  * @param rect 归一化裁剪框（0~1），仅用于记录与重绘。
@@ -127,6 +128,26 @@ data class BaiduOcrResponse(
     val words_result_num: Int = 0,
     val error_code: Int? = null,
     val error_msg: String? = null
+)
+
+/** 试卷切题识别（paper_cut_edu_vlm）单题结果：坐标 + 文字。 */
+data class PaperCutItem(val rect: RectBox, val text: String)
+
+/** 试卷切题 create_task 响应。 */
+@Serializable
+data class PaperCutCreateTaskResponse(
+    val task_id: String? = null,
+    val error_code: Int? = null,
+    val error_msg: String? = null
+)
+
+/** 试卷切题 get_task_result 响应。result 为原始 JSON，由调用方进一步解析。 */
+@Serializable
+data class PaperCutTaskResultResponse(
+    val task_status: String? = null,
+    val error_code: Int? = null,
+    val error_msg: String? = null,
+    val result: JsonElement? = null
 )
 
 /** LLM 响应（仅用于错误信息解析参考；实际请求体在 LlmApiClient 中以 JsonObject 手工构建，支持多模态）。 */
