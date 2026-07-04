@@ -1,44 +1,82 @@
 package com.questionsolver.app.ui
 
-import android.graphics.Color
 import android.os.Bundle
-import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup
-import android.widget.LinearLayout
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.setPadding
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.chip.Chip
-import com.google.android.material.color.MaterialColors
-import com.google.android.material.textview.MaterialTextView
+import coil.compose.AsyncImage
 import com.questionsolver.app.R
 import com.questionsolver.app.data.AppConfig
-import com.questionsolver.app.databinding.ActivityAnswerBinding
 import com.questionsolver.app.net.BaiduApiClient
 import com.questionsolver.app.net.LlmApiClient
 import com.questionsolver.app.net.SolveEngine
+import com.questionsolver.app.ui.theme.QuestionSolverTheme
 import com.questionsolver.app.util.SolveResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import java.io.File
 
-class AnswerActivity : AppCompatActivity() {
+/**
+ * 答案展示页（MIUIX 重写）。
+ *
+ * 顶部题目图，下方答案/思路/分步解析/知识点，底部上一题/下一题/重试。
+ */
+class AnswerActivity : ComponentActivity() {
 
-    private lateinit var binding: ActivityAnswerBinding
     private lateinit var engine: SolveEngine
-
-    private var currentIndex = 0
-    private val results = mutableListOf<SolveResult?>()
-    private val errored = mutableSetOf<Int>()
+    private val currentIndex = mutableStateOf(0)
+    private val results = mutableStateListOf<SolveResult?>()
+    private val erroredIndices = mutableStateListOf<Int>()
+    private val loading = mutableStateOf(false)
+    private val errorMsg = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityAnswerBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        binding.toolbar.setNavigationOnClickListener { finish() }
-
+        if (SessionData.questions.isEmpty()) {
+            finish()
+            return
+        }
         val cfg = AppConfig.load(this)
         val workDir = File(SessionData.workDirPath.ifBlank { filesDir.absolutePath })
         engine = SolveEngine(
@@ -47,196 +85,246 @@ class AnswerActivity : AppCompatActivity() {
             llm = LlmApiClient(cfg),
             workDir = workDir
         )
-
-        if (SessionData.questions.isEmpty()) {
-            finish()
-            return
-        }
         results.clear()
         repeat(SessionData.questions.size) { results.add(null) }
 
-        binding.btnPrev.setOnClickListener {
-            if (currentIndex > 0) { currentIndex--; showCurrent() }
+        setContent {
+            QuestionSolverTheme {
+                val idx = currentIndex.value
+                AnswerScreen(
+                    total = SessionData.questions.size,
+                    index = idx,
+                    result = results.getOrNull(idx),
+                    error = if (erroredIndices.contains(idx)) errorMsg.value else null,
+                    loading = loading.value,
+                    onPrev = { goTo(currentIndex.value - 1) },
+                    onNext = { goTo(currentIndex.value + 1) },
+                    onRetry = { retryCurrent() },
+                    onBack = { finish() }
+                )
+            }
         }
-        binding.btnNext.setOnClickListener {
-            if (currentIndex < SessionData.questions.size - 1) { currentIndex++; showCurrent() }
-        }
-        binding.btnRetry.setOnClickListener { solveCurrent() }
-
-        showCurrent()
+        solveCurrent()
     }
 
-    private fun showCurrent() {
-        val total = SessionData.questions.size
-        binding.tvIndex.text = "第 ${currentIndex + 1} / $total 题"
-        binding.btnPrev.isEnabled = currentIndex > 0
-        binding.btnNext.isEnabled = currentIndex < total - 1
+    /** 切换到指定题目并触发解题（若未解过）。 */
+    private fun goTo(target: Int) {
+        if (target !in SessionData.questions.indices) return
+        currentIndex.value = target
+        solveCurrent()
+    }
 
-        // 原题图：优先展示用于解题的"处理后图片"
-        val item = SessionData.questions[currentIndex]
+    /** 重试当前题：清除已有错误/结果后重新请求。 */
+    private fun retryCurrent() {
+        val i = currentIndex.value
+        erroredIndices.remove(i)
+        results[i] = null
+        solveCurrent()
+    }
+
+    @Composable
+    private fun AnswerScreen(
+        total: Int,
+        index: Int,
+        result: SolveResult?,
+        error: String?,
+        loading: Boolean,
+        onPrev: () -> Unit,
+        onNext: () -> Unit,
+        onRetry: () -> Unit,
+        onBack: () -> Unit
+    ) {
+        val item = SessionData.questions[index]
         val displayPath = item.enhancedImagePath?.takeIf { File(it).exists() } ?: item.sourceImage
-        binding.ivQuestion.setImageURI(android.net.Uri.fromFile(File(displayPath)))
-
-        // 切题时先清空解析区
-        clearResultViews()
-
-        val r = results.getOrNull(currentIndex)
-        if (r != null) {
-            renderResult(r)
-        } else if (errored.contains(currentIndex)) {
-            // 错误态由 overlay 显示，不覆盖
-        } else {
-            solveCurrent()
-        }
-    }
-
-    private fun clearResultViews() {
-        binding.tvAnswer.text = ""
-        binding.tvHint.text = ""
-        binding.tvHint.visibility = View.GONE
-        binding.tvHintLabel.visibility = View.GONE
-        binding.stepsContainer.removeAllViews()
-        binding.chipsKnowledge.removeAllViews()
-        binding.chipDifficulty.visibility = View.GONE
-        binding.tvKnowledgeLabel.visibility = View.GONE
-    }
-
-    private fun renderResult(r: SolveResult) {
-        // 1) 标准答案
-        binding.tvAnswer.text = r.answer.ifBlank { getString(R.string.answer_unavailable) }
-
-        // 2) 难度 chip
-        if (r.difficulty.isNotBlank()) {
-            binding.chipDifficulty.text = r.difficulty
-            binding.chipDifficulty.chipBackgroundColor = difficultyColor(r.difficulty)
-            binding.chipDifficulty.setTextColor(Color.WHITE)
-            binding.chipDifficulty.visibility = View.VISIBLE
-        } else {
-            binding.chipDifficulty.visibility = View.GONE
-        }
-
-        // 3) 思路提示
-        if (r.hint.isNotBlank()) {
-            binding.tvHintLabel.visibility = View.VISIBLE
-            binding.tvHint.text = r.hint
-            binding.tvHint.visibility = View.VISIBLE
-        } else {
-            binding.tvHintLabel.visibility = View.GONE
-            binding.tvHint.visibility = View.GONE
-        }
-
-        // 4) 分步解析：每步一张小卡片，带序号
-        binding.stepsContainer.removeAllViews()
-        if (r.steps.isEmpty()) {
-            binding.stepsContainer.addView(buildStepView(1, getString(R.string.answer_unavailable)))
-        } else {
-            r.steps.forEachIndexed { i, text ->
-                binding.stepsContainer.addView(buildStepView(i + 1, text))
-            }
-        }
-
-        // 5) 知识点 chips
-        if (r.knowledgePoints.isNotEmpty()) {
-            binding.tvKnowledgeLabel.visibility = View.VISIBLE
-            binding.chipsKnowledge.visibility = View.VISIBLE
-            r.knowledgePoints.forEach { pt ->
-                val chip = Chip(this).apply {
-                    text = pt
-                    isClickable = false
-                    isCheckable = false
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = "第 ${index + 1} / $total 题",
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    }
+                )
+            },
+            bottomBar = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onPrev,
+                        enabled = index > 0,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors()
+                    ) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = null)
+                        Text("上一题")
+                    }
+                    Button(
+                        onClick = onRetry,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors()
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                        Text("重试")
+                    }
+                    Button(
+                        onClick = onNext,
+                        enabled = index < total - 1,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) {
+                        Text("下一题")
+                        Icon(Icons.Filled.ChevronRight, contentDescription = null)
+                    }
                 }
-                binding.chipsKnowledge.addView(chip)
             }
-        } else {
-            binding.tvKnowledgeLabel.visibility = View.GONE
-            binding.chipsKnowledge.visibility = View.GONE
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 题目原图
+                Card {
+                    AsyncImage(
+                        model = File(displayPath),
+                        contentDescription = "题目图片",
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                    )
+                }
+                if (loading) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.size(8.dp))
+                            Text("正在解析…")
+                        }
+                    }
+                } else if (error != null) {
+                    Card {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("解析失败", fontWeight = FontWeight.Bold)
+                            Text(error)
+                        }
+                    }
+                } else if (result != null) {
+                    ResultContent(result)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
 
-    /** 构造单步解析卡片：左侧序号圆点 + 右侧文字。 */
-    private fun buildStepView(index: Int, text: String): View {
-        val ctx = this
-        val container = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.TOP
-            setPadding(0, dp(8), 0, dp(8))
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+    @Composable
+    private fun ResultContent(r: SolveResult) {
+        // 答案
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("答案", fontWeight = FontWeight.Bold)
+                Text(r.answer.ifBlank { getString(R.string.answer_unavailable) })
+                if (r.difficulty.isNotBlank()) {
+                    Text(
+                        text = r.difficulty,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(difficultyColor(r.difficulty))
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        color = Color.White
+                    )
+                }
+            }
         }
-
-        val numView = MaterialTextView(ctx).apply {
-            this.text = index.toString()
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setBackgroundResource(R.drawable.step_number_bg)
-            val lp = LinearLayout.LayoutParams(dp(28), dp(28))
-            lp.marginEnd = dp(12)
-            layoutParams = lp
+        // 思路提示
+        if (r.hint.isNotBlank()) {
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("思路提示", fontWeight = FontWeight.Bold)
+                    Text(r.hint)
+                }
+            }
         }
-
-        val textView = MaterialTextView(ctx).apply {
-            this.text = text
-            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface, Color.BLACK))
-            isClickable = true
-            setTextIsSelectable(true)
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
-            )
+        // 分步解析
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("分步解析", fontWeight = FontWeight.Bold)
+                if (r.steps.isEmpty()) {
+                    Text(getString(R.string.answer_unavailable))
+                } else {
+                    r.steps.forEachIndexed { i, step ->
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                text = "${i + 1}",
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF3F51B5))
+                                    .padding(4.dp),
+                                color = Color.White
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            Text(step, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
         }
-
-        container.addView(numView)
-        container.addView(textView)
-        return container
+        // 知识点
+        if (r.knowledgePoints.isNotEmpty()) {
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("知识点", fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(r.knowledgePoints) { pt ->
+                            Text(
+                                text = pt,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFE8EAF6))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    private fun difficultyColor(level: String): android.content.res.ColorStateList {
-        val color = when (level.trim()) {
-            "简单" -> 0xFF4CAF50.toInt()
-            "中等" -> 0xFFFF9800.toInt()
-            "困难" -> 0xFFE53935.toInt()
-            else -> 0xFF607D8B.toInt()
-        }
-        return android.content.res.ColorStateList.valueOf(color)
+    private fun difficultyColor(level: String): Color = when (level.trim()) {
+        "简单" -> Color(0xFF4CAF50)
+        "中等" -> Color(0xFFFF9800)
+        "困难" -> Color(0xFFE53935)
+        else -> Color(0xFF607D8B)
     }
-
-    private fun dp(v: Int): Int =
-        (v * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun solveCurrent() {
-        showLoading()
-        binding.errorOverlay.visibility = View.GONE
-        val index = currentIndex
+        val index = currentIndex.value
+        if (index !in SessionData.questions.indices) return
+        // 已有结果或已记录错误则不重复请求
+        if (results[index] != null || erroredIndices.contains(index)) return
+        loading.value = true
+        errorMsg.value = null
         val item = SessionData.questions[index]
         lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) { engine.solve(item, index + 1) }
                 results[index] = result
-                errored.remove(index)
-                hideLoading()
-                if (currentIndex == index) renderResult(result)
+                erroredIndices.remove(index)
             } catch (e: Exception) {
-                hideLoading()
-                errored.add(index)
-                if (currentIndex == index) {
-                    binding.tvError.text = getString(R.string.answer_error, e.message ?: "未知错误")
-                    binding.errorOverlay.visibility = View.VISIBLE
-                }
+                erroredIndices.add(index)
+                errorMsg.value = getString(R.string.answer_error, e.message ?: "未知错误")
+            } finally {
+                loading.value = false
             }
         }
-    }
-
-    private fun showLoading() {
-        binding.tvLoading.text = getString(R.string.answer_loading)
-        binding.loadingOverlay.visibility = View.VISIBLE
-    }
-
-    private fun hideLoading() {
-        binding.loadingOverlay.visibility = View.GONE
     }
 }

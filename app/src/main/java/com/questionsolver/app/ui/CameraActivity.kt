@@ -8,43 +8,83 @@ import android.os.Bundle
 import android.view.OrientationEventListener
 import android.view.ScaleGestureDetector
 import android.view.Surface
-import android.view.View
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.snackbar.Snackbar
 import com.questionsolver.app.R
 import com.questionsolver.app.data.AppConfig
-import com.questionsolver.app.databinding.ActivityCameraBinding
 import com.questionsolver.app.net.BaiduApiClient
+import com.questionsolver.app.ui.theme.QuestionSolverTheme
 import com.questionsolver.app.util.ImageUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SuperDialog
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class CameraActivity : AppCompatActivity() {
+/**
+ * 拍照页（MIUIX 重写）。
+ *
+ * CameraX 预览用 AndroidView 包裹 PreviewView，所有相机逻辑（拍照/变焦/闪光/方向）保留。
+ * 返回模式：从切分页「再拍一页」唤起时，结果通过 setResult 返回。
+ */
+class CameraActivity : ComponentActivity() {
 
-    private lateinit var binding: ActivityCameraBinding
     private var imageCapture: ImageCapture? = null
     private var camera: Camera? = null
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
-    // 闪光灯循环：OFF -> ON -> AUTO -> OFF
+    /** Compose 持有的 PreviewView 实例，供 startCamera 绑定 surfaceProvider。 */
+    private val previewView: PreviewView by lazy { PreviewView(this) }
+
+    private val returnMode: Boolean by lazy {
+        intent.getBooleanExtra(EXTRA_RETURN_MODE, false)
+    }
+
     private val flashCycle = intArrayOf(
         ImageCapture.FLASH_MODE_OFF,
         ImageCapture.FLASH_MODE_ON,
@@ -55,19 +95,21 @@ class CameraActivity : AppCompatActivity() {
         R.string.camera_flash_on,
         R.string.camera_flash_auto
     )
-    private var flashIndex = 0
 
-    // 变焦范围 1.0 ~ 5.0
+    // UI 状态
+    private var flashIndex by mutableStateOf(0)
+    private var currentZoom by mutableStateOf(1.0f)
+    private var hasFlash by mutableStateOf(true)
+    private var loading by mutableStateOf(false)
+    private var loadingText by mutableStateOf("")
+    private var snackbarMsg by mutableStateOf<String?>(null)
+    private var enhanceError by mutableStateOf<String?>(null)
+    private var showEnhanceErrorDialog by mutableStateOf(false)
+    private var pendingUseOriginal by mutableStateOf<(() -> Unit)?>(null)
+
     private val minZoom = 1.0f
     private val maxZoom = 5.0f
-    private var currentZoom = 1.0f
 
-    /**
-     * 通过方向传感器（陀螺仪/加速度计）跟踪设备朝向，并在变化时更新
-     * ImageCapture 的 targetRotation，使拍出的 JPEG EXIF 方向与实际手持方向一致。
-     * 后续 [com.questionsolver.app.util.ImageUtils.loadCompressed] 会读取该 EXIF
-     * 方向把 Bitmap 旋转到正向，从而解决竖拍/横拍图片旋转的问题。
-     */
     private val orientationListener: OrientationEventListener by lazy {
         object : OrientationEventListener(this) {
             private var lastRotation = Surface.ROTATION_0
@@ -91,42 +133,60 @@ class CameraActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) startCamera() else finish() }
 
-    // Photo Picker：从图库导入单张图片
     private val galleryLauncher = registerForActivityResult(
         ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) importFromUri(uri)
-    }
+    ) { uri: Uri? -> if (uri != null) importFromUri(uri) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 沉浸式全屏
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        binding = ActivityCameraBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        binding.btnClose.setOnClickListener { finish() }
-        binding.btnCapture.setOnClickListener { takePhoto() }
-        binding.btnFlash.setOnClickListener { cycleFlash() }
-        binding.btnGallery.setOnClickListener { openGallery() }
-        binding.btnZoomPreset.setOnClickListener { cycleZoomPreset() }
-
-        binding.zoomSlider.setOnSeekBarChangeListener(object :
-            android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                // progress 0~40 → 1.0~5.0
-                val ratio = minZoom + (maxZoom - minZoom) * (progress / 40f)
-                applyZoom(ratio)
+        setContent {
+            QuestionSolverTheme {
+                CameraScreen(
+                    flashIndex = flashIndex,
+                    currentZoom = currentZoom,
+                    hasFlash = hasFlash,
+                    loading = loading,
+                    loadingText = loadingText,
+                    snackbarMsg = snackbarMsg,
+                    onDismissSnackbar = { snackbarMsg = null },
+                    onClose = { finish() },
+                    onCapture = { takePhoto() },
+                    onCycleFlash = { cycleFlash() },
+                    onOpenGallery = { openGallery() },
+                    onCycleZoomPreset = { cycleZoomPreset() },
+                    onZoomChange = { applyZoom(it) },
+                    previewView = previewView
+                )
+                // 增强失败对话框（普通模式）
+                if (showEnhanceErrorDialog) {
+                    SuperDialog(
+                        title = "图像增强失败",
+                        show = showEnhanceErrorDialog,
+                        onDismissRequest = { showEnhanceErrorDialog = false }
+                    ) {
+                        Text("百度增强接口调用失败：${enhanceError ?: ""}\n是否使用原图继续切分？")
+                        Spacer(Modifier.size(8.dp))
+                        Button(
+                            onClick = {
+                                showEnhanceErrorDialog = false
+                                pendingUseOriginal?.invoke()
+                                pendingUseOriginal = null
+                            },
+                            colors = ButtonDefaults.buttonColorsPrimary()
+                        ) { Text("使用原图") }
+                        Button(
+                            onClick = { showEnhanceErrorDialog = false }
+                        ) { Text("取消") }
+                    }
+                }
             }
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
-        })
+        }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED) {
@@ -141,45 +201,36 @@ class CameraActivity : AppCompatActivity() {
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
             val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(binding.previewView.surfaceProvider)
+                it.setSurfaceProvider(previewView.surfaceProvider)
             }
             imageCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .setFlashMode(flashCycle[flashIndex])
                 .setTargetRotation(windowManager.defaultDisplay.rotation)
                 .build()
-
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(
                     this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture
                 )
                 setupPinchToZoom()
-                // 检查设备是否支持闪光灯
-                val hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
-                binding.btnFlash.isEnabled = hasFlash
-                binding.btnFlash.alpha = if (hasFlash) 1f else 0.4f
-                updateFlashIcon()
-                if (!hasFlash) {
-                    Snackbar.make(binding.root, R.string.camera_no_flash, Snackbar.LENGTH_SHORT).show()
-                }
+                hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
+                if (!hasFlash) snackbarMsg = getString(R.string.camera_no_flash)
             } catch (e: Exception) {
-                Snackbar.make(binding.root, "无法启动相机：${e.message}", Snackbar.LENGTH_LONG).show()
+                snackbarMsg = "无法启动相机：${e.message}"
             }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    /** 双指捏合缩放：基于 PreviewView 的内置手势检测。 */
     private fun setupPinchToZoom() {
         val scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val cam = camera ?: return false
                 val next = (currentZoom * detector.scaleFactor).coerceIn(minZoom, maxZoom)
                 applyZoom(next)
                 return true
             }
         })
-        binding.previewView.setOnTouchListener { _, event ->
+        previewView.setOnTouchListener { _, event ->
             scaleDetector.onTouchEvent(event)
             true
         }
@@ -190,14 +241,8 @@ class CameraActivity : AppCompatActivity() {
         val clamped = ratio.coerceIn(minZoom, maxZoom)
         currentZoom = clamped
         cam.cameraControl.setZoomRatio(clamped)
-        // 同步 UI
-        binding.tvZoomValue.text = String.format("%.1fx", clamped)
-        binding.btnZoomPreset.text = formatZoomPreset(clamped)
-        val progress = ((clamped - minZoom) / (maxZoom - minZoom) * 40f).toInt().coerceIn(0, 40)
-        binding.zoomSlider.progress = progress
     }
 
-    /** 预设按钮循环：1x → 2x → 3x → 5x → 1x。 */
     private fun cycleZoomPreset() {
         val next = when {
             currentZoom < 1.5f -> 2f
@@ -208,24 +253,10 @@ class CameraActivity : AppCompatActivity() {
         applyZoom(next)
     }
 
-    private fun formatZoomPreset(z: Float): String =
-        if (z >= 1f) String.format("%.0fx", z) else String.format("%.1fx", z)
-
     private fun cycleFlash() {
         flashIndex = (flashIndex + 1) % flashCycle.size
         imageCapture?.flashMode = flashCycle[flashIndex]
-        updateFlashIcon()
-        Snackbar.make(binding.root, flashLabels[flashIndex], Snackbar.LENGTH_SHORT).show()
-    }
-
-    /** 闪光灯图标随当前档位切换：OFF→闪电加斜杠，ON→闪电，AUTO→闪电+A。 */
-    private fun updateFlashIcon() {
-        val icon = when (flashCycle[flashIndex]) {
-            ImageCapture.FLASH_MODE_ON -> R.drawable.ic_flash
-            ImageCapture.FLASH_MODE_AUTO -> R.drawable.ic_flash_auto
-            else -> R.drawable.ic_flash_off
-        }
-        binding.btnFlash.setIconResource(icon)
+        snackbarMsg = getString(flashLabels[flashIndex])
     }
 
     private fun openGallery() {
@@ -240,25 +271,22 @@ class CameraActivity : AppCompatActivity() {
         val rawFile = File(workDir, "raw.jpg")
         val outputOptions = ImageCapture.OutputFileOptions.Builder(rawFile).build()
 
-        showLoading("拍摄中…")
+        loading = true; loadingText = "拍摄中…"
         capture.takePicture(outputOptions, cameraExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    runOnUiThread { showLoading("本地压缩与增强中…") }
+                    loadingText = "本地压缩与增强中…"
                     processAfterCapture(rawFile, workDir)
                 }
                 override fun onError(exc: ImageCaptureException) {
-                    runOnUiThread {
-                        hideLoading()
-                        Snackbar.make(binding.root, "拍摄失败：${exc.message}", Snackbar.LENGTH_LONG).show()
-                    }
+                    loading = false
+                    snackbarMsg = "拍摄失败：${exc.message}"
                 }
             })
     }
 
-    /** 从图库导入：复制到工作目录，作为 raw.jpg 走后续压缩+增强流程。 */
     private fun importFromUri(uri: Uri) {
-        showLoading("导入图片中…")
+        loading = true; loadingText = "导入图片中…"
         CoroutineScope(Dispatchers.Main).launch {
             val workDir = File(filesDir, "work_${System.currentTimeMillis()}").apply { mkdirs() }
             val rawFile = File(workDir, "raw.jpg")
@@ -271,21 +299,15 @@ class CameraActivity : AppCompatActivity() {
                 }.getOrElse { false }
             }
             if (!ok) {
-                hideLoading()
-                Snackbar.make(binding.root, "图片导入失败", Snackbar.LENGTH_LONG).show()
+                loading = false
+                snackbarMsg = "图片导入失败"
                 return@launch
             }
-            showLoading("本地压缩与增强中…")
+            loadingText = "本地压缩与增强中…"
             processAfterCapture(rawFile, workDir)
         }
     }
 
-    /**
-     * 拍摄/导入后流程：
-     *  1) 本地轻量压缩原图并保存（"仅压缩、未做百度增强"的原图）；
-     *  2) 默认调用百度图像增强做全局预处理，保存增强全图；
-     *  3) 进入切分页（SessionData 携带两条路径）。
-     */
     private fun processAfterCapture(rawFile: File, workDir: File) {
         val cfg = AppConfig.load(this)
         CoroutineScope(Dispatchers.Main).launch {
@@ -296,7 +318,6 @@ class CameraActivity : AppCompatActivity() {
                     val out = File(workDir, "original_compressed.jpg")
                     ImageUtils.saveCompressedJpeg(bmp, out)
                 }
-                // 调用百度图像增强（默认全局预处理）
                 val enhancedPath = withContext(Dispatchers.IO) {
                     val baidu = BaiduApiClient(cfg)
                     val bytes = baidu.enhanceDefinition(compressedPath)
@@ -304,32 +325,48 @@ class CameraActivity : AppCompatActivity() {
                     out.writeBytes(bytes)
                     out.absolutePath
                 }
-                SessionData.clear()
-                SessionData.workDirPath = workDir.absolutePath
-                SessionData.compressedOriginalPath = compressedPath
-                SessionData.enhancedFullPath = enhancedPath
-                SessionData.layoutUsedSource = SessionData.SOURCE_ENHANCED
-                hideLoading()
-                startActivity(Intent(this@CameraActivity, SegmentationActivity::class.java))
-                finish()
+                loading = false
+                finishCapture(compressedPath, enhancedPath, workDir.absolutePath, null)
             } catch (e: Exception) {
-                hideLoading()
-                // 增强失败时仍可使用原图进入切分
-                SessionData.clear()
-                SessionData.workDirPath = workDir.absolutePath
-                SessionData.compressedOriginalPath = compressedPath.ifBlank { compressedPathSafe(workDir) }
-                SessionData.enhancedFullPath = compressedPath.ifBlank { compressedPathSafe(workDir) }
-                MaterialAlertDialogBuilder(this@CameraActivity)
-                    .setTitle("图像增强失败")
-                    .setMessage("百度增强接口调用失败：${e.message}\n是否使用原图继续切分？")
-                    .setPositiveButton(R.string.ok) { _, _ ->
-                        startActivity(Intent(this@CameraActivity, SegmentationActivity::class.java))
-                        finish()
+                loading = false
+                val safeCompressed = compressedPath.ifBlank { compressedPathSafe(workDir) }
+                if (returnMode) {
+                    finishCapture(safeCompressed, safeCompressed, workDir.absolutePath, e.message)
+                } else {
+                    enhanceError = e.message
+                    pendingUseOriginal = {
+                        finishCapture(safeCompressed, safeCompressed, workDir.absolutePath, null)
                     }
-                    .setNegativeButton(R.string.cancel) { _, _ -> }
-                    .setCancelable(false)
-                    .show()
+                    showEnhanceErrorDialog = true
+                }
             }
+        }
+    }
+
+    private fun finishCapture(
+        compressedPath: String,
+        enhancedPath: String,
+        workDirPath: String,
+        enhanceError: String?
+    ) {
+        if (returnMode) {
+            val data = Intent().apply {
+                putExtra(EXTRA_RESULT_COMPRESSED, compressedPath)
+                putExtra(EXTRA_RESULT_ENHANCED, enhancedPath)
+                putExtra(EXTRA_RESULT_WORK_DIR, workDirPath)
+                enhanceError?.let { putExtra(EXTRA_RESULT_ENHANCE_ERROR, it) }
+            }
+            setResult(RESULT_OK, data)
+            finish()
+        } else {
+            SessionData.clear()
+            SessionData.resetToSinglePage(
+                PageData(compressedPath, enhancedPath),
+                workDirPath
+            )
+            SessionData.layoutUsedSource = SessionData.SOURCE_ENHANCED
+            startActivity(Intent(this@CameraActivity, SegmentationActivity::class.java))
+            finish()
         }
     }
 
@@ -342,20 +379,9 @@ class CameraActivity : AppCompatActivity() {
         return ""
     }
 
-    private fun showLoading(text: String) {
-        binding.tvLoading.text = text
-        binding.loadingOverlay.visibility = View.VISIBLE
-    }
-
-    private fun hideLoading() {
-        binding.loadingOverlay.visibility = View.GONE
-    }
-
     override fun onResume() {
         super.onResume()
-        if (orientationListener.canDetectOrientation()) {
-            orientationListener.enable()
-        }
+        if (orientationListener.canDetectOrientation()) orientationListener.enable()
     }
 
     override fun onPause() {
@@ -367,5 +393,133 @@ class CameraActivity : AppCompatActivity() {
         super.onDestroy()
         orientationListener.disable()
         cameraExecutor.shutdown()
+    }
+
+    companion object {
+        const val EXTRA_RETURN_MODE = "return_mode"
+        const val EXTRA_RESULT_COMPRESSED = "result_compressed"
+        const val EXTRA_RESULT_ENHANCED = "result_enhanced"
+        const val EXTRA_RESULT_WORK_DIR = "result_work_dir"
+        const val EXTRA_RESULT_ENHANCE_ERROR = "result_enhance_error"
+    }
+}
+
+@Composable
+private fun CameraScreen(
+    flashIndex: Int,
+    currentZoom: Float,
+    hasFlash: Boolean,
+    loading: Boolean,
+    loadingText: String,
+    snackbarMsg: String?,
+    onDismissSnackbar: () -> Unit,
+    onClose: () -> Unit,
+    onCapture: () -> Unit,
+    onCycleFlash: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onCycleZoomPreset: () -> Unit,
+    onZoomChange: (Float) -> Unit,
+    previewView: PreviewView
+) {
+    Scaffold { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // CameraX 预览
+            AndroidView(
+                factory = { previewView },
+                modifier = Modifier.fillMaxSize()
+            )
+            // 顶部控制栏：关闭、闪光、图库
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Filled.Close, contentDescription = "关闭", tint = Color.White)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(onClick = onCycleFlash, enabled = hasFlash) {
+                        Icon(
+                            Icons.Filled.Bolt,
+                            contentDescription = "闪光",
+                            tint = if (flashIndex == 0) Color.Gray else Color.Yellow
+                        )
+                    }
+                    IconButton(onClick = onOpenGallery) {
+                        Icon(Icons.Filled.PhotoLibrary, contentDescription = "图库", tint = Color.White)
+                    }
+                }
+            }
+            // 底部控制栏：变焦预设 + 快门 + 变焦滑块
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 变焦滑块
+                Slider(
+                    value = currentZoom,
+                    onValueChange = onZoomChange,
+                    valueRange = 1.0f..5.0f,
+                    modifier = Modifier.fillMaxWidth(0.7f)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 变焦预设
+                    Button(
+                        onClick = onCycleZoomPreset,
+                        colors = ButtonDefaults.buttonColors()
+                    ) { Text(String.format("%.1fx", currentZoom)) }
+                    // 快门
+                    Button(
+                        onClick = onCapture,
+                        colors = ButtonDefaults.buttonColorsPrimary(),
+                        modifier = Modifier.size(72.dp)
+                    ) { Text("拍摄") }
+                    Spacer(Modifier.size(72.dp))
+                }
+            }
+            // 加载 overlay
+            if (loading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = Color.White)
+                        Spacer(Modifier.size(8.dp))
+                        Text(loadingText, color = Color.White)
+                    }
+                }
+            }
+            // Snackbar
+            if (snackbarMsg != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 200.dp)
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Text(
+                        text = snackbarMsg,
+                        color = Color.White,
+                        modifier = Modifier
+                            .padding(12.dp)
+                    )
+                }
+            }
+        }
     }
 }
