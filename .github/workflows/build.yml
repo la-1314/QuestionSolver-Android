@@ -36,7 +36,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-34 platforms;android-35 build-tools;34.0.0 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-34 platforms;android-35 platforms;android-36 build-tools;34.0.0 build-tools;35.0.0 build-tools;36.0.0'
 
       - name: Set up Gradle 8.14.4
         uses: gradle/actions/setup-gradle@v3
@@ -63,12 +63,12 @@ jobs:
       - name: Report build error as annotations
         if: failure()
         run: |
-          # 优先输出 Kotlin/Gradle 编译错误行（含文件路径、FAILURE、error:、AAR metadata 详情等）
-          grep -nE 'FAILURE:|^e: |error:|> Task.*FAILED|What went wrong|Caused by:|requires|minCompileSdk|AAR metadata|issues were found' /tmp/build-output.log | head -80 | while IFS= read -r line; do
+          # 捕获 Kotlin/Gradle 编译错误行；AAR metadata 错误是多行的，用 -A 4 取后续行显示具体要求
+          grep -nE -A 4 'FAILURE:|^e: |error:|> Task.*FAILED|What went wrong|Caused by:|requires libraries|minCompileSdk|AAR metadata|issues were found' /tmp/build-output.log | head -200 | while IFS= read -r line; do
             echo "::error::$line"
           done
-          echo "===== LAST 20 LINES ====="
-          tail -20 /tmp/build-output.log | while IFS= read -r line; do
+          echo "===== LAST 30 LINES ====="
+          tail -30 /tmp/build-output.log | while IFS= read -r line; do
             echo "::error::$line"
           done
 
