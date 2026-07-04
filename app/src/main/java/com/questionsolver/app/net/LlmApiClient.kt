@@ -4,6 +4,7 @@ import com.questionsolver.app.data.AppConfig
 import com.questionsolver.app.util.ImageUtils
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -102,8 +103,8 @@ class LlmApiClient(
             put("messages", messages)
             put("temperature", 0.2)
             put("max_tokens", 4096)
-            // 部分兼容服务支持 response_format=json_object，加上无副作用
-            put("response_format", buildJsonObject { put("type", "json_object") })
+            // 不传 response_format=json_object：部分 OpenAI 兼容服务不支持该字段会返回 400。
+            // JSON 输出由 SYSTEM_PROMPT 强约束，AnswerParser 做容错提取。
         }
         return json.encodeToString(JsonObject.serializer(), root)
     }
@@ -126,14 +127,32 @@ class LlmApiClient(
                 ?: throw RuntimeException("无法解析响应：$raw")
             // 检查 error 字段
             root["error"]?.let { err ->
-                val msg = err.jsonObject["message"]?.jsonPrimitive?.contentOrNull
-                throw RuntimeException(msg ?: err.toString())
+                val msg = (err as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
+                    ?: err.toString()
+                throw RuntimeException(msg)
             }
-            val choice = root["choices"]?.let { it as? JsonArray }?.firstOrNull()?.jsonObject
+            val choices = root["choices"] as? JsonArray
+            val choice = choices?.firstOrNull()?.jsonObject
                 ?: throw RuntimeException("未返回 choices：$raw")
-            val content = choice["message"]?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull
+            val message = choice["message"]?.jsonObject
+                ?: throw RuntimeException("返回 message 为空：$raw")
+            // content 可能是字符串、JSON 对象或 JSON 数组：
+            //  - 字符串：常规 OpenAI 兼容服务，content 为模型生成的文本（可能含 ```json``` 代码块）
+            //  - 对象/数组：部分服务在 response_format=json_object 时直接返回结构化 JSON
+            // 统一规整为字符串，交给 AnswerParser 做容错解析。
+            val content = extractContentAsString(message["content"])
                 ?: throw RuntimeException("返回内容为空：$raw")
             return content
+        }
+    }
+
+    /** 把 content 字段统一转为字符串：字符串原样返回，对象/数组序列化为 JSON 字符串。 */
+    private fun extractContentAsString(element: JsonElement?): String? {
+        if (element == null || element is kotlinx.serialization.json.JsonNull) return null
+        return when (element) {
+            is JsonPrimitive -> element.contentOrNull
+            is JsonObject -> json.encodeToString(JsonObject.serializer(), element)
+            is JsonArray -> json.encodeToString(JsonArray.serializer(), element)
         }
     }
 

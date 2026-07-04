@@ -68,10 +68,10 @@
             app:iconTint="@android:color/white" />
     </FrameLayout>
 
-    <!-- 右侧变焦滑条：1x ~ 5x -->
+    <!-- 右侧变焦滑条：1x ~ 5x（固定窄宽度，避免旋转后的 SeekBar 撑宽预览区） -->
     <LinearLayout
         android:id="@+id/zoomPanel"
-        android:layout_width="wrap_content"
+        android:layout_width="48dp"
         android:layout_height="0dp"
         android:layout_marginEnd="16dp"
         android:layout_marginTop="80dp"
@@ -79,7 +79,7 @@
         android:orientation="vertical"
         android:gravity="center"
         android:background="@drawable/scrim_round"
-        android:padding="8dp"
+        android:padding="6dp"
         app:layout_constraintTop_toBottomOf="@id/topBar"
         app:layout_constraintBottom_toTopOf="@id/bottomBar"
         app:layout_constraintEnd_toEndOf="parent">
@@ -90,26 +90,36 @@
             android:layout_height="wrap_content"
             android:text="1.0x"
             android:textColor="@android:color/white"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:layout_marginBottom="6dp" />
+            android:textSize="11sp"
+            android:layout_marginBottom="4dp" />
 
-        <androidx.appcompat.widget.AppCompatSeekBar
-            android:id="@+id/zoomSlider"
-            android:layout_width="180dp"
-            android:layout_height="wrap_content"
-            android:rotation="270"
-            android:max="40"
-            android:progress="0"
-            android:progressTint="@android:color/white"
-            android:thumbTint="@color/md_accent" />
+        <!-- 用固定尺寸 FrameLayout 包裹旋转后的 SeekBar：
+             SeekBar 测量尺寸仍为 180dp x wrap，rotation=270 后视觉为窄高，
+             但 FrameLayout 强制约束为 36dp x 180dp，从而避免旋转 View 撑宽父布局。 -->
+        <FrameLayout
+            android:layout_width="36dp"
+            android:layout_height="180dp"
+            android:layout_gravity="center">
+
+            <androidx.appcompat.widget.AppCompatSeekBar
+                android:id="@+id/zoomSlider"
+                android:layout_width="180dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:rotation="270"
+                android:max="40"
+                android:progress="0"
+                android:progressTint="@android:color/white"
+                android:thumbTint="@color/md_accent" />
+        </FrameLayout>
 
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="1x · 5x"
             android:textColor="@android:color/white"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:layout_marginTop="6dp" />
+            android:textSize="10sp"
+            android:layout_marginTop="4dp" />
     </LinearLayout>
 
     <!-- 底部控制条：图库 / 快门 / 变焦预设 -->
