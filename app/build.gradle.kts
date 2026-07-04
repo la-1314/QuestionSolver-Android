@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.questionsolver.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.questionsolver.app"

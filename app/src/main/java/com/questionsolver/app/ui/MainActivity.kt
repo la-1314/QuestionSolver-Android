@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,8 +27,8 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.SuperDialog
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 
 /**
  * 首页（MIUIX 重写）。
@@ -99,7 +100,7 @@ private fun MainScreen(
         }
         // SuperDialog 需被 Scaffold 包裹以使用其 popup 容器
         if (showConfigDialog) {
-            SuperDialog(
+            OverlayDialog(
                 title = "配置未完成",
                 show = showConfigDialog,
                 onDismissRequest = { showConfigDialog = false }
