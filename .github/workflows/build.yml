@@ -53,17 +53,13 @@ jobs:
           echo "==== settings.gradle.kts ===="; cat settings.gradle.kts
           echo "==== build.gradle.kts ===="; cat build.gradle.kts
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.14.4 --distribution-type bin
-
       - name: Show gradle version
         run: gradle --version
 
       - name: Build debug APK
         run: |
-          chmod +x gradlew
           set -o pipefail
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-output.log
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-output.log
 
       - name: Report build error as annotations
         if: failure()
