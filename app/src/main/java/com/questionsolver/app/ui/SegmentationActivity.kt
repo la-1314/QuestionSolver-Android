@@ -137,26 +137,15 @@ class SegmentationActivity : ComponentActivity() {
                     onSolveAll = { solveAll() },
                     onToggleSource = { toggleSource() },
                     sourceIsEnhanced = sourceIsEnhanced,
-                    cropOverlay = cropOverlay
+                    cropOverlay = cropOverlay,
+                    showSegmentFailDialog = showSegmentFailDialog,
+                    segmentFailMsg = segmentFailMsg,
+                    onManualBox = {
+                        showSegmentFailDialog = false
+                        cropOverlay.addEmptyBox()
+                    },
+                    onDismissSegmentFailDialog = { showSegmentFailDialog = false }
                 )
-                if (showSegmentFailDialog) {
-                    OverlayDialog(
-                        title = "试卷切分失败",
-                        show = showSegmentFailDialog,
-                        onDismissRequest = { showSegmentFailDialog = false }
-                    ) {
-                        Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
-                        Spacer(Modifier.size(8.dp))
-                        Button(
-                            onClick = {
-                                showSegmentFailDialog = false
-                                cropOverlay.addEmptyBox()
-                            },
-                            colors = ButtonDefaults.buttonColorsPrimary()
-                        ) { Text("手动框选") }
-                        Button(onClick = { showSegmentFailDialog = false }) { Text("取消") }
-                    }
-                }
             }
         }
         rebuildStitchedAndSegment()
@@ -371,7 +360,11 @@ private fun SegmentationScreen(
     onSolveAll: () -> Unit,
     onToggleSource: () -> Unit,
     sourceIsEnhanced: Boolean,
-    cropOverlay: CropBoxOverlayView
+    cropOverlay: CropBoxOverlayView,
+    showSegmentFailDialog: Boolean,
+    segmentFailMsg: String,
+    onManualBox: () -> Unit,
+    onDismissSegmentFailDialog: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -507,6 +500,22 @@ private fun SegmentationScreen(
                     Spacer(Modifier.size(8.dp))
                     Text(loadingText)
                 }
+            }
+        }
+        // 切分失败对话框（必须放在 Scaffold 内，依赖 MiuixPopupHost 渲染弹窗）
+        if (showSegmentFailDialog) {
+            OverlayDialog(
+                title = "试卷切分失败",
+                show = showSegmentFailDialog,
+                onDismissRequest = onDismissSegmentFailDialog
+            ) {
+                Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
+                Spacer(Modifier.size(8.dp))
+                Button(
+                    onClick = onManualBox,
+                    colors = ButtonDefaults.buttonColorsPrimary()
+                ) { Text("手动框选") }
+                Button(onClick = onDismissSegmentFailDialog) { Text("取消") }
             }
         }
     }
