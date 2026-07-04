@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -34,7 +34,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
 import com.questionsolver.app.R
@@ -50,11 +56,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 
 /**
@@ -138,6 +146,7 @@ class SegmentationActivity : ComponentActivity() {
                     onToggleSource = { toggleSource() },
                     sourceIsEnhanced = sourceIsEnhanced,
                     cropOverlay = cropOverlay,
+                    pageCount = SessionData.pageCount,
                     showSegmentFailDialog = showSegmentFailDialog,
                     segmentFailMsg = segmentFailMsg,
                     onManualBox = {
@@ -361,6 +370,7 @@ private fun SegmentationScreen(
     onToggleSource: () -> Unit,
     sourceIsEnhanced: Boolean,
     cropOverlay: CropBoxOverlayView,
+    pageCount: Int,
     showSegmentFailDialog: Boolean,
     segmentFailMsg: String,
     onManualBox: () -> Unit,
@@ -378,145 +388,243 @@ private fun SegmentationScreen(
             )
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // 提示文字
-            if (hint.isNotBlank()) {
-                Text(
-                    text = hint,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
-            // 裁剪框图层（自定义 View，横向可滑动）
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                AndroidView(
-                    factory = { cropOverlay },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            // 底部操作区
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 源切换 + 重切分
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 提示条（带渐变与页数）
+                if (hint.isNotBlank()) {
+                    HintBar(hint = hint, pageCount = pageCount)
+                }
+                // 裁剪框图层（自定义 View，横向可滑动）
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
                 ) {
-                    Button(
-                        onClick = onToggleSource,
-                        colors = if (sourceIsEnhanced) ButtonDefaults.buttonColorsPrimary()
-                        else ButtonDefaults.buttonColors(),
-                        modifier = Modifier.weight(1f)
-                    ) { Text(if (sourceIsEnhanced) "增强图" else "原图") }
-                    Button(
-                        onClick = onResegment,
-                        colors = ButtonDefaults.buttonColors(),
-                        modifier = Modifier.weight(1f)
+                    AndroidView(
+                        factory = { cropOverlay },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+                // 底部工具栏卡片
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Column(
+                        Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Text("重切分")
+                        // 第一行：源切换 + 重切分
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ToolButton(
+                                icon = Icons.Filled.Refresh,
+                                label = if (sourceIsEnhanced) "增强图" else "原图",
+                                primary = sourceIsEnhanced,
+                                onClick = onToggleSource,
+                                modifier = Modifier.weight(1f)
+                            )
+                            ToolButton(
+                                icon = Icons.Filled.Refresh,
+                                label = "重切分",
+                                primary = false,
+                                onClick = onResegment,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // 第二行：添加框 / 删除 / 多选拼接
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ToolButton(
+                                icon = Icons.Filled.Add,
+                                label = "添加框",
+                                primary = false,
+                                onClick = onAddBox,
+                                modifier = Modifier.weight(1f)
+                            )
+                            ToolButton(
+                                icon = Icons.Filled.Delete,
+                                label = "删除",
+                                primary = false,
+                                onClick = onDelete,
+                                modifier = Modifier.weight(1f)
+                            )
+                            ToolButton(
+                                icon = Icons.Filled.Cameraswitch,
+                                label = multiSelectText,
+                                primary = true,
+                                onClick = onMultiSelect,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // 第三行：再拍一页 / 全部解题（强调）
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ToolButton(
+                                icon = Icons.Filled.Cameraswitch,
+                                label = "再拍一页",
+                                primary = false,
+                                onClick = onAnotherPage,
+                                modifier = Modifier.weight(1f)
+                            )
+                            ToolButton(
+                                icon = Icons.Filled.PlayArrow,
+                                label = "全部解题",
+                                primary = true,
+                                onClick = onSolveAll,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
-                // 添加框 / 删除 / 多选拼接
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            }
+            // 加载 overlay
+            if (loading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Button(
-                        onClick = onAddBox,
-                        colors = ButtonDefaults.buttonColors(),
-                        modifier = Modifier.weight(1f)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null)
-                        Text("添加框")
-                    }
-                    Button(
-                        onClick = onDelete,
-                        colors = ButtonDefaults.buttonColors(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.Delete, contentDescription = null)
-                        Text("删除")
-                    }
-                    Button(
-                        onClick = onMultiSelect,
-                        colors = ButtonDefaults.buttonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    ) { Text(multiSelectText) }
-                }
-                // 再拍一页 / 全部解题
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = onAnotherPage,
-                        colors = ButtonDefaults.buttonColors(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.Cameraswitch, contentDescription = null)
-                        Text("再拍一页")
-                    }
-                    Button(
-                        onClick = onSolveAll,
-                        colors = ButtonDefaults.buttonColorsPrimary(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                        Text("全部解题")
+                        CircularProgressIndicator()
+                        Text(loadingText)
                     }
                 }
             }
             // Snackbar
             if (snackbar != null) {
-                Text(
-                    text = snackbar,
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                )
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 200.dp)
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MiuixTheme.colorScheme.surfaceContainerHighest)
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = snackbar,
+                            color = MiuixTheme.colorScheme.onSurfaceContainerHighest,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
             }
-        }
-        // 加载 overlay
-        if (loading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
+            // 切分失败对话框（必须放在 Scaffold 内，依赖 MiuixPopupHost 渲染弹窗）
+            if (showSegmentFailDialog) {
+                OverlayDialog(
+                    title = "试卷切分失败",
+                    show = showSegmentFailDialog,
+                    onDismissRequest = onDismissSegmentFailDialog
+                ) {
+                    Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
                     Spacer(Modifier.size(8.dp))
-                    Text(loadingText)
+                    Button(
+                        onClick = onManualBox,
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) { Text("手动框选") }
+                    Button(onClick = onDismissSegmentFailDialog) { Text("取消") }
                 }
             }
         }
-        // 切分失败对话框（必须放在 Scaffold 内，依赖 MiuixPopupHost 渲染弹窗）
-        if (showSegmentFailDialog) {
-            OverlayDialog(
-                title = "试卷切分失败",
-                show = showSegmentFailDialog,
-                onDismissRequest = onDismissSegmentFailDialog
-            ) {
-                Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
+    }
+}
+
+/** 顶部提示条：左侧色条 + 文案，多页时显示页数徽章。 */
+@Composable
+private fun HintBar(hint: String, pageCount: Int) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        MiuixTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        MiuixTheme.colorScheme.surface
+                    )
+                )
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(3.dp, 32.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MiuixTheme.colorScheme.primary)
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = hint,
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                modifier = Modifier.weight(1f)
+            )
+            if (pageCount > 1) {
                 Spacer(Modifier.size(8.dp))
-                Button(
-                    onClick = onManualBox,
-                    colors = ButtonDefaults.buttonColorsPrimary()
-                ) { Text("手动框选") }
-                Button(onClick = onDismissSegmentFailDialog) { Text("取消") }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MiuixTheme.colorScheme.primary)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "${pageCount}页",
+                        color = MiuixTheme.colorScheme.onPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
+        }
+    }
+}
+
+/** 工具栏按钮：图标 + 文案垂直排列，节省横向空间。 */
+@Composable
+private fun ToolButton(
+    icon: ImageVector,
+    label: String,
+    primary: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        colors = if (primary) ButtonDefaults.buttonColorsPrimary()
+        else ButtonDefaults.buttonColors(),
+        minHeight = 44.dp
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
