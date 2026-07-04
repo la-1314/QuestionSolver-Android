@@ -63,8 +63,16 @@ jobs:
       - name: Report build error as annotations
         if: failure()
         run: |
-          # 捕获 Kotlin/Gradle 编译错误行；AAR metadata 错误是多行的，用 -A 4 取后续行显示具体要求
-          grep -nE -A 4 'FAILURE:|^e: |error:|> Task.*FAILED|What went wrong|Caused by:|requires libraries|minCompileSdk|AAR metadata|issues were found' /tmp/build-output.log | head -200 | while IFS= read -r line; do
+          echo "===== AAR METADATA ISSUES (完整块) ====="
+          grep -nE -A 60 'issues were found when checking AAR metadata' /tmp/build-output.log | head -80 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          echo "===== KOTLIN COMPILE ERRORS (^e:) ====="
+          grep -nE '^e: ' /tmp/build-output.log | head -40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          echo "===== GRADLE FAILURE SUMMARY ====="
+          grep -nE 'FAILURE:|> Task.*FAILED|What went wrong|Caused by:' /tmp/build-output.log | head -20 | while IFS= read -r line; do
             echo "::error::$line"
           done
           echo "===== LAST 30 LINES ====="
