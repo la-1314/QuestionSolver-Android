@@ -355,8 +355,11 @@ class BaiduApiClient(
     private fun baiduError(api: String, code: Int?, msg: String?, raw: String): RuntimeException {
         val detail = when (code) {
             6 -> "$api 失败：当前应用无该接口访问权限（错误码 6，No permission to access data）。\n" +
-                    "请在百度智能云控制台 → 应用列表 → 选中当前应用 → 「关联服务」中勾选并开通「试卷切题识别」；" +
-                    "若勾选后仍报错，需在控制台提工单申请百度官方人工开通权限。"
+                    "解决步骤：\n" +
+                    "1) 登录百度智能云控制台 → 「应用列表」→ 选中当前应用；\n" +
+                    "2) 在「关联服务」中勾选并开通「试卷切题识别(paper_cut_edu_vlm)」；\n" +
+                    "3) 若勾选后仍报错 6，需在控制台「工单管理」提工单申请百度人工开通权限；\n" +
+                    "4) 开通前可先用「手动框选」继续解题，不影响使用。"
             110, 111 -> "$api 失败：access_token 失效或过期，请在配置页核对 API Key/Secret Key"
             17 -> "$api 失败：该百度服务未开通（错误码 17），请到百度智能云控制台领取/开通「试卷切题识别」服务"
             18 -> "$api 失败：QPS 超限（错误码 18），请稍后重试"
