@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -168,7 +169,7 @@ class BaiduApiClient(
         // 2) 轮询结果：建议提交后 5~10 秒开始轮询，这里 3 秒起、每次 3 秒、最多 30 次（约 90 秒）
         Thread.sleep(3000)
         var lastError: String? = null
-        repeat(30) {
+        pollLoop@ repeat(30) {
             val queryBody = buildJsonObject { put("task_id", taskId) }.toString()
             val done = postJson(PAPER_CUT_RESULT_URL, queryBody) { raw ->
                 val parsed = json.decodeFromString(PaperCutTaskResultResponse.serializer(), raw)
@@ -188,7 +189,7 @@ class BaiduApiClient(
             if (done != null) {
                 return parsePaperCutResult(done)
             }
-            if (lastError != null) break
+            if (lastError != null) break@pollLoop
             Thread.sleep(3000)
         }
         throw RuntimeException(lastError ?: "试卷切分超时，请稍后重试")
