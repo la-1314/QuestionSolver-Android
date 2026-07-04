@@ -5,7 +5,9 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,10 +15,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
@@ -24,9 +34,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.questionsolver.app.R
 import com.questionsolver.app.data.AppConfig
 import com.questionsolver.app.ui.theme.QuestionSolverTheme
@@ -35,10 +50,12 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 服务配置页（MIUIX 重写）。
@@ -98,6 +115,37 @@ private fun ConfigScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            // 固定底部的保存按钮
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.surface)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Button(
+                    onClick = {
+                        onSave(
+                            AppConfig(
+                                baiduApiKey = baiduApiKey.trim(),
+                                baiduSecretKey = baiduSecretKey.trim(),
+                                llmDomain = llmDomain.trim(),
+                                llmApiKey = llmApiKey.trim(),
+                                llmModel = llmModel.trim(),
+                                llmSupportsImage = llmSupportsImage
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColorsPrimary(),
+                    minHeight = 48.dp
+                ) {
+                    Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.config_save), fontWeight = FontWeight.Medium)
+                }
+            }
         }
     ) { padding ->
         Column(
@@ -105,35 +153,45 @@ private fun ConfigScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            // 百度智能云
-            Card {
+            // 分组标题：百度智能云
+            SmallTitle(
+                text = "百度智能云",
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+            ) {
                 Column(
-                    Modifier.padding(16.dp),
+                    Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("百度智能云")
-                    TextField(
-                        value = baiduApiKey,
-                        onValueChange = { baiduApiKey = it },
+                    LabeledTextField(
+                        icon = Icons.Filled.Key,
                         label = "API Key",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        value = baiduApiKey,
+                        onValueChange = { baiduApiKey = it }
                     )
-                    TextField(
-                        value = baiduSecretKey,
-                        onValueChange = { baiduSecretKey = it },
+                    LabeledTextField(
+                        icon = Icons.Filled.Key,
                         label = "Secret Key",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        value = baiduSecretKey,
+                        onValueChange = { baiduSecretKey = it }
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         TextButton(
                             text = "打开控制台",
                             onClick = { onOpenUrl("https://console.bce.baidu.com") }
                         )
+                        Spacer(Modifier.size(8.dp))
                         TextButton(
                             text = "查看文档",
                             onClick = { onOpenUrl("https://ai.baidu.com/ai-doc/OCR/Cmn8k7ihq") }
@@ -141,68 +199,106 @@ private fun ConfigScreen(
                     }
                 }
             }
-            // 大模型服务
-            Card {
+
+            // 分组标题：大模型服务
+            SmallTitle(
+                text = "大模型服务",
+                modifier = Modifier.padding(top = 20.dp)
+            )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+            ) {
                 Column(
-                    Modifier.padding(16.dp),
+                    Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("大模型服务")
-                    TextField(
-                        value = llmDomain,
-                        onValueChange = { llmDomain = it },
+                    LabeledTextField(
+                        icon = Icons.Filled.Public,
                         label = "域名（如 https://api.example.com）",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        value = llmDomain,
+                        onValueChange = { llmDomain = it }
                     )
-                    TextField(
-                        value = llmApiKey,
-                        onValueChange = { llmApiKey = it },
+                    LabeledTextField(
+                        icon = Icons.Filled.Key,
                         label = "API Key",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        value = llmApiKey,
+                        onValueChange = { llmApiKey = it }
                     )
-                    TextField(
-                        value = llmModel,
-                        onValueChange = { llmModel = it },
+                    LabeledTextField(
+                        icon = Icons.Filled.Label,
                         label = "模型名",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        value = llmModel,
+                        onValueChange = { llmModel = it }
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("支持图像输入")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (llmSupportsImage) Icons.Filled.Image
+                                else Icons.Filled.SmartToy,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            Text("支持图像输入")
+                        }
                         Switch(
                             checked = llmSupportsImage,
                             onCheckedChange = { llmSupportsImage = it }
                         )
                     }
                     Text(
-                        if (llmSupportsImage) "当前模型支持图像，将直接发送题目图片"
-                        else "当前模型不支持图像，仅发送 OCR 文字"
+                        text = if (llmSupportsImage) "当前模型支持图像，将直接发送题目图片"
+                        else "当前模型不支持图像，仅发送 OCR 文字",
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onBackgroundVariant
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Button(
-                onClick = {
-                    onSave(
-                        AppConfig(
-                            baiduApiKey = baiduApiKey.trim(),
-                            baiduSecretKey = baiduSecretKey.trim(),
-                            llmDomain = llmDomain.trim(),
-                            llmApiKey = llmApiKey.trim(),
-                            llmModel = llmModel.trim(),
-                            llmSupportsImage = llmSupportsImage
-                        )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColorsPrimary()
-            ) { Text(stringResource(R.string.config_save)) }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+/** 带前置图标的 TextField 包装。 */
+@Composable
+private fun LabeledTextField(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = label,
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
     }
 }

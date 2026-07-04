@@ -19,6 +19,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
@@ -41,8 +44,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -423,75 +430,150 @@ private fun CameraScreen(
                 factory = { previewView },
                 modifier = Modifier.fillMaxSize()
             )
-            // 顶部控制栏：关闭、闪光、图库
-            Row(
+            // 顶部渐变遮罩 + 控制栏（关闭、闪光、图库）
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.Close, contentDescription = "关闭", tint = Color.White)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onCycleFlash, enabled = hasFlash) {
-                        Icon(
-                            Icons.Filled.Bolt,
-                            contentDescription = "闪光",
-                            tint = if (flashIndex == 0) Color.Gray else Color.Yellow
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent)
                         )
-                    }
-                    IconButton(onClick = onOpenGallery) {
-                        Icon(Icons.Filled.PhotoLibrary, contentDescription = "图库", tint = Color.White)
-                    }
-                }
-            }
-            // 底部控制栏：变焦预设 + 快门 + 变焦滑块
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                // 变焦滑块
-                Slider(
-                    value = currentZoom,
-                    onValueChange = onZoomChange,
-                    valueRange = 1.0f..5.0f,
-                    modifier = Modifier.fillMaxWidth(0.7f)
-                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    CircleIconButton(
+                        icon = Icons.Filled.Close,
+                        contentDescription = "关闭",
+                        onClick = onClose
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircleIconButton(
+                            icon = Icons.Filled.Bolt,
+                            contentDescription = "闪光",
+                            onClick = onCycleFlash,
+                            enabled = hasFlash,
+                            tint = if (flashIndex == 0) Color.White
+                            else Color(0xFFFFD54F)
+                        )
+                        CircleIconButton(
+                            icon = Icons.Filled.PhotoLibrary,
+                            contentDescription = "图库",
+                            onClick = onOpenGallery
+                        )
+                    }
+                }
+            }
+            // 底部控制卡：变焦滑块 + 快门
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))
+                        )
+                    )
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 变焦滑块（带刻度按钮）
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = String.format("%.1fx", currentZoom),
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Slider(
+                        value = currentZoom,
+                        onValueChange = onZoomChange,
+                        valueRange = 1.0f..5.0f,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "5.0x",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+                // 中央大快门 + 左右占位
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(Modifier.size(56.dp))
+                    // 大快门按钮
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .padding(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF5722))
+                        )
+                    }
                     // 变焦预设
-                    Button(
-                        onClick = onCycleZoomPreset,
-                        colors = ButtonDefaults.buttonColors()
-                    ) { Text(String.format("%.1fx", currentZoom)) }
-                    // 快门
-                    Button(
-                        onClick = onCapture,
-                        colors = ButtonDefaults.buttonColorsPrimary(),
-                        modifier = Modifier.size(72.dp)
-                    ) { Text("拍摄") }
-                    Spacer(Modifier.size(72.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconButton(onClick = onCycleZoomPreset) {
+                            Text(
+                                text = "Z",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
             // 加载 overlay
             if (loading) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         CircularProgressIndicator(color = Color.White)
-                        Spacer(Modifier.size(8.dp))
-                        Text(loadingText, color = Color.White)
+                        Text(loadingText, color = Color.White, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -500,15 +582,21 @@ private fun CameraScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 200.dp)
+                        .padding(bottom = 220.dp)
                         .padding(horizontal = 16.dp)
                 ) {
-                    Text(
-                        text = snackbarMsg,
-                        color = Color.White,
+                    Box(
                         modifier = Modifier
-                            .padding(12.dp)
-                    )
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.75f))
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = snackbarMsg,
+                            color = Color.White,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }
@@ -527,6 +615,28 @@ private fun CameraScreen(
                 ) { Text("使用原图") }
                 Button(onClick = onCancelEnhanceError) { Text("取消") }
             }
+        }
+    }
+}
+
+/** 顶部圆形半透明图标按钮。 */
+@Composable
+private fun CircleIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    tint: Color = Color.White
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = if (enabled) 0.35f else 0.15f)),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(onClick = onClick, enabled = enabled) {
+            Icon(icon, contentDescription = contentDescription, tint = tint)
         }
     }
 }
