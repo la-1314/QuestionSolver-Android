@@ -9,8 +9,8 @@ buildscript {
     }
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.3")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
-        classpath("org.jetbrains.kotlin:kotlin-serialization:2.3.20")
-        classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.3.20")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.0")
+        classpath("org.jetbrains.kotlin:kotlin-serialization:2.4.0")
+        classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.4.0")
     }
 }

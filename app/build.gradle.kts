@@ -74,8 +74,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // MIUIX — Xiaomi HyperOS 风格组件库（Compose）
-    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.8.8")
-    implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.8.8")
+    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.2")
+    implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.2")
 
     // CameraX
     val cameraxVersion = "1.3.4"
