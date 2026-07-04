@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.questionsolver.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.questionsolver.app"
         minSdk = 33
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 3
         versionName = "1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
