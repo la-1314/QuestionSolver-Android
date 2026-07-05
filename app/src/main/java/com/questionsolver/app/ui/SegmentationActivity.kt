@@ -531,21 +531,22 @@ private fun SegmentationScreen(
                     }
                 }
             }
-            // 切分失败对话框（必须放在 Scaffold 内，依赖 MiuixPopupHost 渲染弹窗）
-            if (showSegmentFailDialog) {
-                OverlayDialog(
-                    title = "试卷切分失败",
-                    show = showSegmentFailDialog,
-                    onDismissRequest = onDismissSegmentFailDialog
-                ) {
-                    Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
-                    Spacer(Modifier.size(8.dp))
-                    Button(
-                        onClick = onManualBox,
-                        colors = ButtonDefaults.buttonColorsPrimary()
-                    ) { Text("手动框选") }
-                    Button(onClick = onDismissSegmentFailDialog) { Text("取消") }
-                }
+        }
+        // 切分失败对话框：与 Box 同级，直接挂在 Scaffold content lambda 顶层，
+        // 依赖 Scaffold 提供的 MiuixPopupHost 渲染弹窗（嵌套在 fillMaxSize 的 Box 内会触发崩溃）
+        if (showSegmentFailDialog) {
+            OverlayDialog(
+                title = "试卷切分失败",
+                show = showSegmentFailDialog,
+                onDismissRequest = onDismissSegmentFailDialog
+            ) {
+                Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
+                Spacer(Modifier.size(8.dp))
+                Button(
+                    onClick = onManualBox,
+                    colors = ButtonDefaults.buttonColorsPrimary()
+                ) { Text("手动框选") }
+                Button(onClick = onDismissSegmentFailDialog) { Text("取消") }
             }
         }
     }
