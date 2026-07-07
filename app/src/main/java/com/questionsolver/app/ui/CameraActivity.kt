@@ -20,6 +20,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -527,13 +528,14 @@ private fun CameraScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Spacer(Modifier.size(56.dp))
-                    // 大快门按钮
+                    // 大快门按钮（点击触发拍照，加载中禁用避免连拍）
                     Box(
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
                             .background(Color.White)
                             .padding(4.dp)
+                            .clickable(enabled = !loading) { onCapture() }
                     ) {
                         Box(
                             modifier = Modifier
