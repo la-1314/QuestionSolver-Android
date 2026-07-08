@@ -319,7 +319,7 @@ class AnswerActivity : ComponentActivity() {
                                 Brush.horizontalGradient(
                                     listOf(
                                         MiuixTheme.colorScheme.primary,
-                                        MiuixTheme.colorScheme.tertiary
+                                        MiuixTheme.colorScheme.tertiaryContainer
                                     )
                                 )
                             } else if (done) {
@@ -504,7 +504,7 @@ class AnswerActivity : ComponentActivity() {
         SectionCard(
             title = "分步解析",
             icon = Icons.Filled.Stairs,
-            accent = MiuixTheme.colorScheme.tertiary
+            accent = MiuixTheme.colorScheme.tertiaryContainer
         ) {
             if (r.steps.isEmpty()) {
                 Text(
