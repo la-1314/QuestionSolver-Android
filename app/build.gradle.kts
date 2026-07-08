@@ -76,6 +76,8 @@ dependencies {
     // MIUIX — Xiaomi HyperOS 风格组件库（Compose）
     implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.2")
     implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.2")
+    // MIUIX 液态玻璃 / 高斯模糊（minSdk 33，RuntimeShader）
+    implementation("top.yukonga.miuix.kmp:miuix-blur-android:0.9.2")
 
     // CameraX
     val cameraxVersion = "1.3.4"

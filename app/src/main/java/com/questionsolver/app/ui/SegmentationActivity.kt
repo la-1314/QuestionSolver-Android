@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -48,7 +51,11 @@ import com.questionsolver.app.data.AppConfig
 import com.questionsolver.app.data.QuestionItem
 import com.questionsolver.app.data.RectBox
 import com.questionsolver.app.net.BaiduApiClient
+import com.questionsolver.app.ui.theme.GlassBar
+import com.questionsolver.app.ui.theme.GlassCard
+import com.questionsolver.app.ui.theme.GlassRoot
 import com.questionsolver.app.ui.theme.QuestionSolverTheme
+import com.questionsolver.app.ui.theme.ambientHalo
 import com.questionsolver.app.view.CropBoxOverlayView
 import com.questionsolver.app.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
@@ -56,27 +63,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 
 /**
- * 试卷切分页（MIUIX 重写）。
+ * 试卷切分页（液态玻璃重写）。
  *
- * CropBoxOverlayView 用 AndroidView 包裹，保留自定义 Canvas 绘制与触摸/多选逻辑。
- * 多选拼接：单按钮三态（多选拼接 / 退出多选 / 拼接选中(N)）。
+ * CropBoxOverlayView 用 AndroidView 包裹，作为玻璃模糊的背景源。
+ * 工具栏与提示条用真毛玻璃模糊裁剪画面。
  */
 class SegmentationActivity : ComponentActivity() {
 
     private lateinit var baidu: BaiduApiClient
     private lateinit var cfg: AppConfig
 
-    /** Activity 持有的裁剪框自定义 View，供 AndroidView 包裹与多处调用。 */
     private val cropOverlay: CropBoxOverlayView by lazy {
         CropBoxOverlayView(this).also { v ->
             v.onBoxesChanged = { if (v.multiSelectMode) refreshMultiSelectState() }
@@ -90,7 +93,6 @@ class SegmentationActivity : ComponentActivity() {
     private var pendingOcrTexts: List<String> = emptyList()
     private val mergedImagePaths = mutableListOf<String>()
 
-    // UI 状态
     private var loading by mutableStateOf(false)
     private var loadingText by mutableStateOf("")
     private var hint by mutableStateOf("")
@@ -376,29 +378,49 @@ private fun SegmentationScreen(
     onManualBox: () -> Unit,
     onDismissSegmentFailDialog: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = "试卷切分",
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+    Scaffold { padding ->
+        GlassRoot(Modifier.padding(padding)) {
+            // 氛围光晕背景
+            Box(Modifier.fillMaxSize().ambientHalo())
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+            ) {
+                // 浮动玻璃顶栏
+                GlassBar(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = onBack),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                                tint = MiuixTheme.colorScheme.onBackground
+                            )
+                        }
+                        Spacer(Modifier.size(8.dp))
+                        Text("试卷切分", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-            )
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // 提示条（带渐变与页数）
+                // 提示条（玻璃卡）
                 if (hint.isNotBlank()) {
                     HintBar(hint = hint, pageCount = pageCount)
                 }
-                // 裁剪框图层（自定义 View，横向可滑动）
+                // 裁剪框图层（作为玻璃模糊背景源）
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -409,20 +431,20 @@ private fun SegmentationScreen(
                         factory = { cropOverlay },
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(16.dp))
                     )
                 }
-                // 底部工具栏卡片
-                Card(
+                // 底部玻璃工具栏
+                GlassCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    cornerRadius = 24.dp
                 ) {
                     Column(
-                        Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // 第一行：源切换 + 重切分
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -442,7 +464,6 @@ private fun SegmentationScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        // 第二行：添加框 / 删除 / 多选拼接
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -469,7 +490,6 @@ private fun SegmentationScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        // 第三行：再拍一页 / 全部解题（强调）
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -492,15 +512,14 @@ private fun SegmentationScreen(
                     }
                 }
             }
-            // 加载 overlay
+            // 加载 overlay（玻璃态）
             if (loading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f)),
-                    contentAlignment = Alignment.Center
+                GlassCard(
+                    modifier = Modifier.align(Alignment.Center),
+                    cornerRadius = 24.dp
                 ) {
                     Column(
+                        modifier = Modifier.padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -509,7 +528,7 @@ private fun SegmentationScreen(
                     }
                 }
             }
-            // Snackbar
+            // Snackbar（玻璃胶囊）
             if (snackbar != null) {
                 Box(
                     modifier = Modifier
@@ -517,65 +536,62 @@ private fun SegmentationScreen(
                         .padding(bottom = 200.dp)
                         .padding(horizontal = 16.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MiuixTheme.colorScheme.surfaceContainerHighest)
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    GlassCard(
+                        cornerRadius = 16.dp,
+                        tint = MiuixTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f)
                     ) {
                         Text(
                             text = snackbar,
                             color = MiuixTheme.colorScheme.onSurfaceContainerHighest,
-                            fontSize = 13.sp
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                         )
                     }
                 }
             }
-        }
-        // 切分失败对话框：与 Box 同级，直接挂在 Scaffold content lambda 顶层，
-        // 依赖 Scaffold 提供的 MiuixPopupHost 渲染弹窗（嵌套在 fillMaxSize 的 Box 内会触发崩溃）
-        if (showSegmentFailDialog) {
-            OverlayDialog(
-                title = "试卷切分失败",
-                show = showSegmentFailDialog,
-                onDismissRequest = onDismissSegmentFailDialog
-            ) {
-                Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
-                Spacer(Modifier.size(8.dp))
-                Button(
-                    onClick = onManualBox,
-                    colors = ButtonDefaults.buttonColorsPrimary()
-                ) { Text("手动框选") }
-                Button(onClick = onDismissSegmentFailDialog) { Text("取消") }
+            // 切分失败对话框（依赖 Scaffold 的 MiuixPopupHost）
+            if (showSegmentFailDialog) {
+                OverlayDialog(
+                    title = "试卷切分失败",
+                    show = showSegmentFailDialog,
+                    onDismissRequest = onDismissSegmentFailDialog
+                ) {
+                    Text(segmentFailMsg.ifBlank { "未识别到任何题目区域，可手动框选后解题。" })
+                    Spacer(Modifier.size(8.dp))
+                    Button(
+                        onClick = onManualBox,
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) { Text("手动框选") }
+                    Button(onClick = onDismissSegmentFailDialog) { Text("取消") }
+                }
             }
         }
     }
 }
 
-/** 顶部提示条：左侧色条 + 文案，多页时显示页数徽章。 */
+/** 玻璃提示条：左侧色条 + 文案，多页时显示页数徽章。 */
 @Composable
 private fun HintBar(hint: String, pageCount: Int) {
-    Box(
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        MiuixTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        MiuixTheme.colorScheme.surface
-                    )
-                )
-            )
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        cornerRadius = 14.dp,
+        tint = MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
                     .size(3.dp, 32.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(MiuixTheme.colorScheme.primary)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(MiuixTheme.colorScheme.primary, MiuixTheme.colorScheme.secondary)
+                        )
+                    )
             )
             Spacer(Modifier.size(10.dp))
             Text(
@@ -604,7 +620,7 @@ private fun HintBar(hint: String, pageCount: Int) {
     }
 }
 
-/** 工具栏按钮：图标 + 文案垂直排列，节省横向空间。 */
+/** 工具栏按钮：图标 + 文案。 */
 @Composable
 private fun ToolButton(
     icon: ImageVector,

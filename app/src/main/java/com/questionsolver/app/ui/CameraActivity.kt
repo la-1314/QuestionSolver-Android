@@ -28,8 +28,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,8 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +63,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.questionsolver.app.R
 import com.questionsolver.app.data.AppConfig
 import com.questionsolver.app.net.BaiduApiClient
+import com.questionsolver.app.ui.theme.GlassBar
+import com.questionsolver.app.ui.theme.GlassCard
+import com.questionsolver.app.ui.theme.GlassRoot
 import com.questionsolver.app.ui.theme.QuestionSolverTheme
 import com.questionsolver.app.util.ImageUtils
 import kotlinx.coroutines.CoroutineScope
@@ -76,10 +83,11 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * 拍照页（MIUIX 重写）。
+ * 拍照页（液态玻璃重写）。
  *
- * CameraX 预览用 AndroidView 包裹 PreviewView，所有相机逻辑（拍照/变焦/闪光/方向）保留。
- * 返回模式：从切分页「再拍一页」唤起时，结果通过 setResult 返回。
+ * CameraX 预览作为 GlassRoot 的背景被捕获，
+ * 顶部/底部控制栏用真毛玻璃模糊预览画面。
+ * 液态快门：白色外圈 + 渐变橙心 + 阴影光晕。
  */
 class CameraActivity : ComponentActivity() {
 
@@ -87,7 +95,6 @@ class CameraActivity : ComponentActivity() {
     private var camera: Camera? = null
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
-    /** Compose 持有的 PreviewView 实例，供 startCamera 绑定 surfaceProvider。 */
     private val previewView: PreviewView by lazy { PreviewView(this) }
 
     private val returnMode: Boolean by lazy {
@@ -105,7 +112,6 @@ class CameraActivity : ComponentActivity() {
         R.string.camera_flash_auto
     )
 
-    // UI 状态
     private var flashIndex by mutableStateOf(0)
     private var currentZoom by mutableStateOf(1.0f)
     private var hasFlash by mutableStateOf(true)
@@ -421,29 +427,23 @@ private fun CameraScreen(
     onCancelEnhanceError: () -> Unit
 ) {
     Scaffold { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // CameraX 预览
+        GlassRoot(Modifier.padding(padding)) {
+            // 相机预览（作为玻璃模糊的背景源）
             AndroidView(
                 factory = { previewView },
                 modifier = Modifier.fillMaxSize()
             )
-            // 顶部渐变遮罩 + 控制栏（关闭、闪光、图库）
-            Box(
+            // 顶部玻璃控制栏
+            GlassBar(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent)
-                        )
-                    )
+                    .statusBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -469,108 +469,114 @@ private fun CameraScreen(
                     }
                 }
             }
-            // 底部控制卡：变焦滑块 + 快门
-            Column(
+            // 底部玻璃控制栏：变焦滑块 + 液态快门
+            GlassBar(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))
-                        )
-                    )
-                    .padding(horizontal = 24.dp, vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
             ) {
-                // 变焦滑块（带刻度按钮）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.18f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = String.format("%.1fx", currentZoom),
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Slider(
-                        value = currentZoom,
-                        onValueChange = onZoomChange,
-                        valueRange = 1.0f..5.0f,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.18f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "5.0x",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-                // 中央大快门 + 左右占位
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(Modifier.size(56.dp))
-                    // 大快门按钮（点击触发拍照，加载中禁用避免连拍）
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                            .padding(4.dp)
-                            .clickable(enabled = !loading) { onCapture() }
+                    // 变焦滑块（玻璃胶囊标签）
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(Color(0xFFFF5722))
-                        )
-                    }
-                    // 变焦预设
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.18f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = onCycleZoomPreset) {
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.White.copy(alpha = 0.22f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
                             Text(
-                                text = "Z",
+                                text = String.format("%.1fx", currentZoom),
                                 color = Color.White,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
                             )
+                        }
+                        Slider(
+                            value = currentZoom,
+                            onValueChange = onZoomChange,
+                            valueRange = 1.0f..5.0f,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.White.copy(alpha = 0.22f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "5.0x",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                    // 中央液态快门 + 变焦预设
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(Modifier.size(64.dp))
+                        // 液态快门：白色外圈 + 渐变橙心 + 光晕
+                        Box(
+                            modifier = Modifier
+                                .size(78.dp)
+                                .shadow(8.dp, CircleShape, ambientColor = Color(0xFFFF7043))
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .padding(4.dp)
+                                .clickable(enabled = !loading) { onCapture() }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(Color(0xFFFF7043), Color(0xFFFF5722), Color(0xFFE64A19))
+                                        )
+                                    )
+                            )
+                        }
+                        // 变焦预设
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.22f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(onClick = onCycleZoomPreset) {
+                                Text(
+                                    text = "Z",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
             }
-            // 加载 overlay
+            // 加载 overlay（玻璃态）
             if (loading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f)),
-                    contentAlignment = Alignment.Center
+                GlassCard(
+                    modifier = Modifier.align(Alignment.Center),
+                    cornerRadius = 24.dp
                 ) {
                     Column(
+                        modifier = Modifier.padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -579,30 +585,29 @@ private fun CameraScreen(
                     }
                 }
             }
-            // Snackbar
+            // Snackbar（玻璃胶囊）
             if (snackbarMsg != null) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 220.dp)
+                        .padding(bottom = 240.dp)
                         .padding(horizontal = 16.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.Black.copy(alpha = 0.75f))
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    GlassCard(
+                        cornerRadius = 16.dp,
+                        tint = Color.Black.copy(alpha = 0.55f)
                     ) {
                         Text(
                             text = snackbarMsg,
                             color = Color.White,
-                            fontSize = 13.sp
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                         )
                     }
                 }
             }
         }
-        // 增强失败对话框（必须放在 Scaffold 内，依赖 MiuixPopupHost 渲染弹窗）
+        // 增强失败对话框（依赖 Scaffold 的 MiuixPopupHost）
         if (showEnhanceErrorDialog) {
             OverlayDialog(
                 title = "图像增强失败",
@@ -624,7 +629,7 @@ private fun CameraScreen(
 /** 顶部圆形半透明图标按钮。 */
 @Composable
 private fun CircleIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
@@ -634,11 +639,14 @@ private fun CircleIconButton(
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
-            .background(Color.Black.copy(alpha = if (enabled) 0.35f else 0.15f)),
+            .background(Color.White.copy(alpha = if (enabled) 0.20f else 0.08f))
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        IconButton(onClick = onClick, enabled = enabled) {
-            Icon(icon, contentDescription = contentDescription, tint = tint)
-        }
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = if (enabled) tint else tint.copy(alpha = 0.4f)
+        )
     }
 }
