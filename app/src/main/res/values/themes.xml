@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Base application theme (Material Design 3) -->
-    <style name="Theme.QuestionSolver" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/md_primary</item>
-        <item name="colorPrimaryVariant">@color/md_primary_dark</item>
-        <item name="colorOnPrimary">@color/md_on_primary</item>
-        <item name="colorSecondary">@color/md_accent</item>
-        <item name="colorOnSecondary">@color/md_on_primary</item>
-        <item name="colorSurface">@color/md_surface</item>
-        <item name="colorOnSurface">@color/md_on_surface</item>
-        <item name="android:colorBackground">@color/md_background</item>
-        <item name="android:statusBarColor" tools:targetApi="l">@color/md_primary_dark</item>
+    <!--
+        Base application theme (Material Design 3 + Material You 动态取色)
+        parent=Theme.Material3.DynamicColors.DayNight.NoActionBar 会在 Android 12+
+        自动从壁纸提取色板注入 colorPrimary/colorSurface 等属性；
+        低于 12 时回退到 Material3 baseline 紫色配色。
+        Compose 层的动态色由 MiuixTheme(ColorSchemeMode.MonetSystem) 单独处理。
+    -->
+    <style name="Theme.QuestionSolver" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <!-- 状态栏 / 导航栏透明，让 Compose 内容自己绘制沉浸式背景 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
     </style>
 
     <style name="Theme.QuestionSolver.NoActionBar" parent="Theme.QuestionSolver">

@@ -5,19 +5,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemeController
+import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 
 /**
- * MIUIX 主题封装。
+ * MIUIX 主题封装（Monet 动态取色）。
  *
  * 全局入口：所有 Compose 页面用 [QuestionSolverTheme] 包裹，
  * 内部委托给 [MiuixTheme]，保证 Xiaomi HyperOS 视觉风格统一。
  *
- * 主题模式使用 [ColorSchemeMode.System]，自动跟随系统深色/浅色模式切换。
+ * 主题模式使用 [ColorSchemeMode.MonetSystem]：
+ * - 自动跟随系统深色/浅色模式切换
+ * - 从系统壁纸提取主色（Android 12+ Material You）生成调色板
+ * - 采用 [ThemePaletteStyle.TonalSpot] + [ThemeColorSpec.Spec2025]，
+ *   获得更新更和谐的色彩规范
+ *
+ * 若系统未启用动态取色或低于 Android 12，会优雅回退到默认 Miuix 配色。
  */
 @Composable
 fun QuestionSolverTheme(content: @Composable () -> Unit) {
-    val controller = remember { ThemeController(ColorSchemeMode.System) }
+    val controller = remember {
+        ThemeController(
+            colorSchemeMode = ColorSchemeMode.MonetSystem,
+            paletteStyle = ThemePaletteStyle.TonalSpot,
+            colorSpec = ThemeColorSpec.Spec2025
+        )
+    }
     MiuixTheme(controller = controller, content = content)
 }
 
