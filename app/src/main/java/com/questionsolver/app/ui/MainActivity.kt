@@ -21,8 +21,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,10 +37,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.questionsolver.app.R
 import com.questionsolver.app.data.AppConfig
 import com.questionsolver.app.ui.theme.GlassBar
@@ -44,6 +51,10 @@ import com.questionsolver.app.ui.theme.GlassCard
 import com.questionsolver.app.ui.theme.GlassRoot
 import com.questionsolver.app.ui.theme.QuestionSolverTheme
 import com.questionsolver.app.ui.theme.ambientHalo
+import com.questionsolver.app.ui.update.UpdateDialog
+import com.questionsolver.app.update.UpdateChecker
+import com.questionsolver.app.update.UpdateDownloader
+import com.questionsolver.app.update.UpdateInfo
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -55,7 +66,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 首页（液态玻璃重写）。
  *
  * 氛围光晕背景 + 浮动玻璃顶栏 + 玻璃状态卡 + 玻璃入口按钮。
- * 配置未完成时点击「拍摄题目」弹 OverlayDialog 引导。
+ * 启动时自动检查更新（直连 4s 超时降级 CDN），手动可触发「检查更新」。
  */
 class MainActivity : ComponentActivity() {
 
@@ -72,7 +83,8 @@ class MainActivity : ComponentActivity() {
                             startActivity(Intent(this, CameraActivity::class.java))
                         }
                     },
-                    onConfig = { startActivity(Intent(this, ConfigActivity::class.java)) }
+                    onConfig = { startActivity(Intent(this, ConfigActivity::class.java)) },
+                    activity = this
                 )
             }
         }
@@ -89,9 +101,52 @@ class MainActivity : ComponentActivity() {
 private fun MainScreen(
     ready: Boolean,
     onTakePhoto: () -> Unit,
-    onConfig: () -> Unit
+    onConfig: () -> Unit,
+    activity: MainActivity
 ) {
+    val context = LocalContext.current
     var showConfigDialog by remember { mutableStateOf(false) }
+
+    // 更新相关状态
+    val checker = remember { UpdateChecker() }
+    val downloader = remember { UpdateDownloader(context) }
+    val currentVersion = remember { getAppVersionName(context) }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var suggestedSource by remember { mutableStateOf(UpdateDownloader.Source.OFFICIAL) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var checking by remember { mutableStateOf(false) }
+    var checkMsg by remember { mutableStateOf<String?>(null) }
+    val downloadState by downloader.state.collectAsState()
+    val isDownloading = downloadState is UpdateDownloader.State.Downloading
+
+    /** 执行一次检查更新。 */
+    fun doCheck(silent: Boolean) {
+        if (checking) return
+        checking = true
+        checkMsg = null
+        activity.lifecycleScope.launch {
+            val result = checker.check(currentVersion)
+            checking = false
+            when (result) {
+                is UpdateChecker.Result.HasUpdate -> {
+                    updateInfo = result.info
+                    suggestedSource = if (result.viaCdn) UpdateDownloader.Source.CDN
+                    else UpdateDownloader.Source.OFFICIAL
+                    showUpdateDialog = true
+                }
+                is UpdateChecker.Result.UpToDate -> {
+                    if (!silent) checkMsg = "已是最新版本"
+                }
+                is UpdateChecker.Result.Failed -> {
+                    if (!silent) checkMsg = result.message
+                }
+            }
+        }
+    }
+
+    // 启动时静默检查一次（不弹错误提示）
+    LaunchedEffect(Unit) { doCheck(silent = true) }
+
     Scaffold { padding ->
         GlassRoot(Modifier.padding(padding)) {
             // 氛围光晕背景层（被玻璃组件模糊捕获）
@@ -110,12 +165,43 @@ private fun MainScreen(
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 14.dp, horizontal = 20.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                        )
+                        Spacer(Modifier.weight(1f))
+                        // 顶栏右侧：检查更新
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable(enabled = !checking) { doCheck(silent = false) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (checking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MiuixTheme.colorScheme.primary
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Filled.SystemUpdate,
+                                    contentDescription = "检查更新",
+                                    tint = MiuixTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
                 Spacer(Modifier.height(28.dp))
                 // 玻璃状态卡
@@ -136,6 +222,37 @@ private fun MainScreen(
                     primary = false,
                     onClick = onConfig
                 )
+                // 检查更新结果提示
+                checkMsg?.let { msg ->
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = msg,
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onBackgroundVariant
+                    )
+                }
+            }
+            // 更新对话框（全屏遮罩 + 玻璃卡）
+            if (showUpdateDialog && updateInfo != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clickable(enabled = !isDownloading) { showUpdateDialog = false },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(modifier = Modifier.clickable(enabled = false) {}) {
+                        UpdateDialog(
+                            info = updateInfo!!,
+                            currentVersion = currentVersion,
+                            suggestedSource = suggestedSource,
+                            downloader = downloader,
+                            onDismiss = {
+                                if (!isDownloading) showUpdateDialog = false
+                            }
+                        )
+                    }
+                }
             }
             // OverlayDialog 依赖 Scaffold 的 MiuixPopupHost
             if (showConfigDialog) {
@@ -157,6 +274,15 @@ private fun MainScreen(
             }
         }
     }
+}
+
+/** 读取当前应用版本名。 */
+private fun getAppVersionName(context: android.content.Context): String {
+    return runCatching {
+        val pm = context.packageManager
+        val info = pm.getPackageInfo(context.packageName, 0)
+        info.versionName ?: ""
+    }.getOrDefault("")
 }
 
 /** 玻璃状态卡：渐变色带 + 状态胶囊 + 文案。 */
